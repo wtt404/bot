@@ -9,7 +9,7 @@ import os
 # Intents
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="+", intents=intents)
 
 # Functions
 def fix_url(url):
@@ -58,7 +58,9 @@ async def on_message(message):
             # Always send the tweet link
             await message.channel.send(fixed)
 
-    await bot.process_commands(message)
+@bot.command()
+async def say(ctx, *, text):
+    await ctx.send(text)
 
 # Run bot with environment variable
 bot.run(os.environ["DISCORD_TOKEN"])
