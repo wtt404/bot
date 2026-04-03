@@ -36,29 +36,33 @@ def translate(text):
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
-
+   
 @bot.event
 async def on_message(message):
     if message.author.bot:
-        return
+            return
 
-    urls = re.findall(r"(https?://\S+)", message.content)
+                urls = re.findall(r"(https?://\S+)", message.content)
 
-    for url in urls:
-        if "twitter.com" in url or "x.com" in url:
-            fixed = fix_url(url)
-            text = get_text(url)
-            translated = translate(text)
+                    for url in urls:
 
-            # Only send embed if translation exists
-            if translated:
-                embed = discord.Embed(description=translated, color=0x000000)
-                await message.channel.send(embed=embed)
+                            # Skip if already fxtwitter
+                                    if "fxtwitter.com" in url:
+                                                continue
 
-            # Always send the tweet link
-            await message.channel.send(fixed)
+                                                        if "twitter.com" in url or "x.com" in url:
+                                                                    fixed = fix_url(url)
+                                                                                text = get_text(url)
+                                                                                            translated = translate(text)
 
-    await bot.process_commands(message)
+                                                                                                        # Only send embed if translation exists
+                                                                                                                    if translated:
+                                                                                                                                    embed = discord.Embed(description=translated, color=0x000000)
+                                                                                                                                                    await message.channel.send(embed=embed)
+
+                                                                                                                                                                await message.channel.send(fixed)
+
+                                                                                                                                                                    await bot.process_commands(message)
 
 # Run bot with environment variable
 bot.run(os.environ["DISCORD_TOKEN"])
