@@ -13,7 +13,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # Functions
 def fix_url(url):
-    return url.replace("twitter.com", "fxtwitter.com").replace("x.com", "fxtwitter.com")
+    return url.replace("twitter.com", "fxtwitter.com").replace("x.com", "fxtwitter.com").replace("fxtwitter.com", "fixupx.com").replace("fixupx.com", "fxtwitter.com")
 
 def get_text(url):
     try:
