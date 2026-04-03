@@ -58,9 +58,9 @@ async def on_message(message):
             # Always send the tweet link
             await message.channel.send(fixed)
 
-@bot.command("+")
-async def say(ctx, *, text):
-    await ctx.send(text)
+@bot.command()
+async def status(ctx):
+    await ctx.send("test")
 
 # Run bot with environment variable
 bot.run(os.environ["DISCORD_TOKEN"])
