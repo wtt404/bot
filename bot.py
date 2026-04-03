@@ -32,6 +32,10 @@ def translate(text):
     except:
         return None
 
+@bot.command()
+async def status(ctx):
+    await ctx.send("Bot is running")
+
 # Events
 @bot.event
 async def on_ready():
@@ -57,10 +61,6 @@ async def on_message(message):
 
             # Always send the tweet link
             await message.channel.send(fixed)
-
-@bot.command()
-async def status(ctx):
-    await ctx.send("test")
 
 # Run bot with environment variable
 bot.run(os.environ["DISCORD_TOKEN"])
