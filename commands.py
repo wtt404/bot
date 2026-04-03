@@ -1,3 +1,5 @@
+commands.Bot(command_prefix="_")
+
 # Change bot status
 @bot.command()
 async def setstatus(ctx, *, text):
@@ -22,6 +24,9 @@ async def online(ctx):
     await bot.change_presence(status=discord.Status.online)
     await ctx.send("Status set to online")
 
+@bot.command()
+async def ping(ctx):
+    await ctx.send("pong")
 
 # Say command
 @bot.command()
