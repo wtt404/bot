@@ -32,9 +32,6 @@ def translate(text):
     except:
         return None
 
-@bot.command()
-async def status(ctx):
-    await ctx.send("Bot is running")
 
 # Events
 @bot.event
