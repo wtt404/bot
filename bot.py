@@ -58,7 +58,7 @@ async def on_message(message):
             # Always send the tweet link
             await message.channel.send(fixed)
 
-@bot.command()
+@bot.command("+")
 async def say(ctx, *, text):
     await ctx.send(text)
 
