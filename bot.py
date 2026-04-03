@@ -42,7 +42,7 @@ async def on_message(message):
     if message.author.bot:
         return
 
-    urls = re.findall(r"(https?://\S+)", message.content)
+    urls = list(set(re.findall(r"(https?://\S+)", message.content)))
 
     for url in urls:
         if "twitter.com" in url or "x.com" in url:
