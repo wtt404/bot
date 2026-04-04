@@ -6,13 +6,13 @@ from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
 
-Intents
+# Intents
 
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-Functions
+# Functions
 
 def fix_url(url):
 return url.replace("twitter.com", "fxtwitter.com").replace("x.com", "fxtwitter.com")
@@ -34,7 +34,7 @@ return None
 except:
 return None
 
-Events
+# Events
 
 @bot.event
 async def on_ready():
