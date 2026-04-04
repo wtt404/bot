@@ -63,6 +63,6 @@ for url in urls:
 
 await bot.process_commands(message)
 
-Run bot with environment variable
+# Run bot with environment variable
 
 bot.run(os.environ["DISCORD_TOKEN"]) 
