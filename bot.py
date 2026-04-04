@@ -66,7 +66,7 @@ async def on_message(message):
 
 # --- Commands restricted to Staff role ---
 @bot.command()
-@commands.has_role("Staff")
+@commands.has_role("Staff", "Mod", "Admin")
 async def say(ctx, *, text):
     try:
         await ctx.message.delete()
@@ -75,25 +75,25 @@ async def say(ctx, *, text):
     await ctx.send(text)
 
 @bot.command()
-@commands.has_role("Staff")
+@commands.has_role("Staff", "Mod", "Admin")
 async def setstatus(ctx, *, text):
     await bot.change_presence(activity=discord.Game(name=text))
     await ctx.send(f"Status updated to: {text}")
 
 @bot.command()
-@commands.has_role("Staff")
+@commands.has_role("Staff", "Mod", "Admin")
 async def online(ctx):
     await bot.change_presence(status=discord.Status.online)
     await ctx.send("Status set to online")
 
 @bot.command()
-@commands.has_role("Staff")
+@commands.has_role("Staff", "Mod", "Admin")
 async def idle(ctx):
     await bot.change_presence(status=discord.Status.idle)
     await ctx.send("Status set to idle")
 
 @bot.command()
-@commands.has_role("Staff")
+@commands.has_role("Staff", "Mod", "Admin")
 async def dnd(ctx):
     await bot.change_presence(status=discord.Status.dnd)
     await ctx.send("Status set to DND")
