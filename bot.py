@@ -10,23 +10,26 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 
 def get_text(url):
-    try:
-        api = url.replace("twitter.com", "api.fxtwitter.com") \
-                 .replace("x.com", "api.fxtwitter.com") \
-                 .replace("fxtwitter.com", "api.fxtwitter.com")
+        try:
+                # First normalize link
+                        url = url.replace("x.com", "twitter.com").replace("fxtwitter.com", "twitter.com")
 
-        print("Fetching:", api)
+                                # Then convert to API link (only once)
+                                        api = url.replace("twitter.com", "api.fxtwitter.com")
 
-        r = requests.get(api)
-        data = r.json()
+                                                print("Fetching:", api)
 
-        text = data.get("tweet", {}).get("text", "")
-        print("Extracted text:", text)
+                                                        r = requests.get(api)
+                                                                data = r.json()
 
-        return text
-    except Exception as e:
-        print("ERROR get_text:", e)
-        return ""
+                                                                        text = data.get("tweet", {}).get("text", "")
+                                                                                print("Extracted text:", text)
+
+                                                                                        return text
+
+                                                                                            except Exception as e:
+                                                                                                    print("ERROR get_text:", e)
+                                                                                                            return ""
 
 def translate(text):
     try:
