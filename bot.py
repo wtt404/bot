@@ -73,7 +73,7 @@ async def on_message(message):
 
             if translated:
                 embed = discord.Embed(description=translated, color=0x000000)
-                await message.channel.send(embed=embed)
+                await message.reply(embed=embed)
             else:
                 print("No translation sent")
 
