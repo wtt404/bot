@@ -19,7 +19,7 @@ tree = app_commands.CommandTree(bot)
 translation_enabled = True
 
 # --- CONFIG ---
-ROLE_IDS = [123456789012345678]  # PUT YOUR ROLE ID
+ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220]  # PUT YOUR ROLE ID
 
 # --- Role Check ---
 def has_role(ctx):
