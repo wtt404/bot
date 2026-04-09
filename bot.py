@@ -14,7 +14,6 @@ intents.guilds = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="+", intents=intents)
-tree = app_commands.CommandTree(bot)
 
 translation_enabled = True
 
@@ -107,18 +106,10 @@ async def say(ctx, *, text):
     await ctx.send(text)
 
 # --- NEW SLASH COMMAND ---
-@tree.command(name="translate", description="Translate text to English")
+@bot.tree.command(name="translate", description="Translate text to English")
 @app_commands.describe(text="Text to translate")
 async def translate_cmd(interaction: discord.Interaction, text: str):
     try:
-        user_roles = [role.id for role in interaction.user.roles]
-
-        if not any(role_id in user_roles for role_id in ROLE_IDS):
-            await interaction.response.send_message(
-                "You do not have permission to use this command.",
-                ephemeral=True
-            )
-            return
 
         clean = re.sub(r"[^\w\s]", "", text)
         lang = detect(clean)
@@ -147,7 +138,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 # --- Events ---
 @bot.event
 async def on_ready():
-    await tree.sync()  # sync slash command
+    await bot.tree.sync()  # sync slash command
     print(f"Logged in as {bot.user}")
 
 @bot.event
