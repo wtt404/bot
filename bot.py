@@ -17,7 +17,7 @@ bot = commands.Bot(command_prefix="+", intents=intents)
 translation_enabled = True
 
 # --- CONFIG ---
-ROLE_IDS = [1489466078525657220]  # put allowed role IDs here
+ROLE_IDS = [1489466078525657220, 1280015405846364171, 1280014871773315103, 1280015168792694838]  # put allowed role IDs here
 
 # --- Role Check ---
 def has_role(ctx):
