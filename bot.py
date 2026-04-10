@@ -121,8 +121,9 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 
 @bot.tree.command(name="say", description="Send a message to a specific channel")
 @app_commands.describe(
-    channel="Channel to send the message in",
-    text="Message to send"
+    text="Message to send",
+    channel="Channel to send the message in"
+    
 )
 async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel, text: str):
     # role restriction
