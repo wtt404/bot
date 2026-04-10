@@ -121,39 +121,34 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 
 @bot.tree.command(name="say", description="Send a message to a specific channel")
 @app_commands.describe(
-    text="Message to send",
-    channel="Channel to send the message in"
-    
+    channel="Channel to send the message in",
+    text="Message to send"
 )
 async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel, text: str):
- 
-    #logging in railway
-    print(f"/say used by {interaction.user} ({interaction.user.id}) in {interaction.guild} -> #{interaction.channel}")
-    print(f"Target channel: {channel} ({channel.id})")
-    print(f"Message: {text}")
-    
-    # role restriction
+
+    print(f"/say used by {interaction.user} -> {channel}")
+
     user_roles = [role.id for role in interaction.user.roles]
     if not any(role_id in user_roles for role_id in ROLE_IDS):
-        await interaction.response.send_message("You do not have permission.", ephemeral=True)
+        await interaction.response.send_message("No permission.", ephemeral=True)
         return
 
     try:
         if not isinstance(channel, discord.TextChannel):
-        await interaction.response.send_message(
-            "Invalid channel type.",
-            ephemeral=True
-        )
-        return
+            await interaction.response.send_message("Invalid channel type.", ephemeral=True)
+            return
 
         await channel.send(text)
-except discord.Forbidden:
-    await interaction.response.send_message("No access to that channel.", ephemeral=True)
-    return
-except discord.HTTPException as e:
-    print("Channel send error:", e)
-    await interaction.response.send_message("Channel error.", ephemeral=True)
-    return
+        await interaction.response.send_message("Sent.", ephemeral=True)
+
+    except discord.Forbidden:
+        await interaction.response.send_message("No access to that channel.", ephemeral=True)
+        return
+
+    except discord.HTTPException as e:
+        print("Channel send error:", e)
+        await interaction.response.send_message("Channel error.", ephemeral=True)
+        return
 
 # --- Events ---
 @bot.event
