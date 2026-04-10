@@ -125,11 +125,11 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 
         chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
 
-        await interaction.response.send_message("Translation:", ephemeral=True)
+        await interaction.response.send_message("Translation:")
 
         for chunk in chunks:
             embed = discord.Embed(description=chunk, color=0x000000)
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     except Exception as e:
         print("Translate command error:", e)
