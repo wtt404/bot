@@ -140,8 +140,12 @@ async def say_slash(interaction: discord.Interaction, channel: discord.TextChann
 
     try:
         if not isinstance(channel, discord.TextChannel):
-    await interaction.response.send_message("Invalid channel type.", ephemeral=True)
-    return
+        await interaction.response.send_message(
+            "Invalid channel type.",
+            ephemeral=True
+        )
+        return
+
         await channel.send(text)
 except discord.Forbidden:
     await interaction.response.send_message("No access to that channel.", ephemeral=True)
