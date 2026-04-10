@@ -91,20 +91,6 @@ async def toggle(ctx):
     status = "ON" if translation_enabled else "OFF"
     await ctx.send(f"Translation is now {status}")
 
-@bot.command()
-async def say(ctx, *, text):
-    print("Say command triggered")
-    if not has_role(ctx):
-        await ctx.send("No permission.")
-        return
-
-    try:
-        await ctx.message.delete()
-    except Exception as e:
-        print("Failed to delete command:", e)
-
-    await ctx.send(text)
-
 # --- NEW SLASH COMMAND ---
 @bot.tree.command(name="translate", description="Translate text to English")
 @app_commands.describe(text="Text to translate")
@@ -132,6 +118,25 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
     except Exception as e:
         print("Translate command error:", e)
         await interaction.response.send_message("Translation failed.", ephemeral=True)
+
+@bot.tree.command(name="say", description="Send a message to a specific channel")
+@app_commands.describe(
+    channel="Channel to send the message in",
+    text="Message to send"
+)
+async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel, text: str):
+    # role restriction
+    user_roles = [role.id for role in interaction.user.roles]
+    if not any(role_id in user_roles for role_id in ROLE_IDS):
+        await interaction.response.send_message("You do not have permission.", ephemeral=True)
+        return
+
+    try:
+        await channel.send(text)
+        await interaction.response.send_message("Sent.", ephemeral=True)
+    except Exception as e:
+        print("Say slash error:", e)
+        await interaction.response.send_message("Failed to send message.", ephemeral=True)
 
 # --- Events ---
 @bot.event
