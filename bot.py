@@ -126,7 +126,12 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 )
 async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel, text: str):
 
-    print(f"/say used by {interaction.user} -> {channel}")
+    print("----- /say command -----")
+print(f"User: {interaction.user} ({interaction.user.id})")
+print(f"From channel: {interaction.channel} ({interaction.channel.id})")
+print(f"Target channel: {channel} ({channel.id})")
+print(f"Message: {text}")
+print("------------------------")
 
     user_roles = [role.id for role in interaction.user.roles]
     if not any(role_id in user_roles for role_id in ROLE_IDS):
