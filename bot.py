@@ -1,3 +1,4 @@
+import html
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -57,7 +58,8 @@ def get_telegram_text(url):
         match = re.search(r'class="tgme_widget_message_text.*?>(.*?)</div>', html, re.DOTALL)
         if match:
             text = re.sub(r"<.*?>", "", match.group(1))
-            text = text.replace("&quot;", "\"").replace("&amp;", "&")
+            import html
+            text = html.unescape(text) 
             return text
         return ""
     except Exception as e:
@@ -108,7 +110,8 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
             return
 
         translated = GoogleTranslator(source="auto", target="en").translate(text)
-
+        translated = html.unescape(translated)
+        
         chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
 
         for chunk in chunks:
