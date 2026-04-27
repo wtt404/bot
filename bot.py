@@ -172,9 +172,9 @@ async def on_message(message):
         return
 
     if message.guild:
-    print(f"[SERVER] {message.guild} | #{message.channel} | {message.author}: {message.content}")
-else:
-    print(f"[DM] {message.author}: {message.content}")
+        print(f"[SERVER] {message.guild} | #{message.channel} | {message.author}: {message.content}")
+     else:
+        print(f"[DM] {message.author}: {message.content}")
 
     await bot.process_commands(message)
 
