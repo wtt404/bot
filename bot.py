@@ -140,9 +140,8 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
             icon = None
         if interaction.guild and interaction.guild.icon:
             icon = interaction.guild.icon.url
-
-             embed.set_footer(
-             text=f"Translated from {lang_name}",
+            embed.set_footer(
+            text=f"Translated from {lang_name}",
              icon_url=icon
                 )
 
