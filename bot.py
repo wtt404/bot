@@ -227,13 +227,13 @@ async def on_message(message):
             for chunk in chunks:
                 embed = discord.Embed(description=chunk, color=0x000000)
                 icon = None
-if interaction.guild and interaction.guild.icon:
-    icon = interaction.guild.icon.url
-
-embed.set_footer(
-    text=f"Translated from {lang_name}",
-    icon_url=icon
-)
+            if interaction.guild and interaction.guild.icon:
+               icon = interaction.guild.icon.url
+               embed.set_footer(
+               text=f"Translated from {lang_name}",
+                icon_url=icon
+                   )
+                
                 await message.reply(embed=embed)
         return
 
