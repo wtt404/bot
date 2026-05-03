@@ -25,7 +25,8 @@ LANG_NAMES = {
     "zh-cn": "Chinese",
     "ja": "Japanese",
     "ko": "Korean",
-    "he": "Hebrew"
+    "he": "Hebrew",
+    "uk": "Ukrainian"
 }
 
 # --- Setup ---
