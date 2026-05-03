@@ -8,6 +8,26 @@ from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
 
+LANG_NAMES = {
+    "ar": "Arabic",
+    "fr": "French",
+    "es": "Spanish",
+    "de": "German",
+    "tr": "Turkish",
+    "ru": "Russian",
+    "it": "Italian",
+    "pt": "Portuguese",
+    "fa": "Persian",
+    "ur": "Urdu",
+    "id": "Indonesian",
+    "hi": "Hindi",
+    "bn": "Bengali",
+    "zh-cn": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "he": "Hebrew"
+}
+
 # --- Setup ---
 intents = discord.Intents.default()
 intents.message_content = True
@@ -73,6 +93,7 @@ def translate(text):
             return None
         clean = re.sub(r"[^\w\s]", "", text)
         lang = detect(clean)
+        lang = LANG_NAMES.get(lang, lang.upper())
         if lang != "en":
             return GoogleTranslator(source="auto", target="en").translate(text)
     except Exception as e:
@@ -116,6 +137,14 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
 
         for chunk in chunks:
             embed = discord.Embed(description=chunk, color=0x000000)
+            icon = None
+if message.guild and message.guild.icon:
+    icon = message.guild.icon.url
+
+embed.set_footer(
+    text=f"Translated from {lang_name}",
+    icon_url=icon
+)
             await interaction.response.send_message(embed=embed)
 
     except Exception as e:
@@ -197,6 +226,14 @@ async def on_message(message):
             chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
             for chunk in chunks:
                 embed = discord.Embed(description=chunk, color=0x000000)
+                icon = None
+if interaction.guild and interaction.guild.icon:
+    icon = interaction.guild.icon.url
+
+embed.set_footer(
+    text=f"Translated from {lang_name}",
+    icon_url=icon
+)
                 await message.reply(embed=embed)
         return
 
