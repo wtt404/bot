@@ -157,7 +157,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
     text="Input message",
     channel="Channel to send the message in (optional)"
 )
-async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel = None, text: str):
+async def say_slash(interaction: discord.Interaction, text: str, channel: discord.TextChannel = None):
     if channel is None:
         channel = interaction.channel
         
