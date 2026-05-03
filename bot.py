@@ -93,7 +93,7 @@ def translate(text):
             return None
         clean = re.sub(r"[^\w\s]", "", text)
         lang = detect(clean)
-        lang = LANG_NAMES.get(lang, lang.upper())
+        lang_name = LANG_NAMES.get(lang, lang.upper())
         if lang != "en":
             return GoogleTranslator(source="auto", target="en").translate(text)
     except Exception as e:
