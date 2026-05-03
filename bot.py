@@ -220,7 +220,7 @@ async def on_message(message):
     await bot.process_commands(message)
 
     if message.guild:
-        if not translation_enabled.get(message.guild.id, True):
+        if not translation_enabled.get(message.guild.id, True): 
             return
 
     urls = re.findall(r"https?://[^\s]+", message.content)
