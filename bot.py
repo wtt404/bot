@@ -152,13 +152,15 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
         print("Translate command error:", e)
         await interaction.response.send_message("Translation failed.", ephemeral=True)
 
-@bot.tree.command(name="say", description="Send a message to a specific channel")
+@bot.tree.command(name="say", description="Send a message through the bot")
 @app_commands.describe(
-    channel="Channel to send the message in",
-    text="Message to send"
+    text="Input message",
+    channel="Channel to send the message in (optional)"
 )
-async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel, text: str):
-
+async def say_slash(interaction: discord.Interaction, channel: discord.TextChannel = None, text: str):
+    if channel is None:
+        channel = interaction.channel
+        
     print("----- /say command -----")
     print(f"User: {interaction.user} ({interaction.user.id})")
     print(f"From channel: {interaction.channel} ({interaction.channel.id})")
@@ -171,11 +173,12 @@ async def say_slash(interaction: discord.Interaction, channel: discord.TextChann
         await interaction.response.send_message("No permission.", ephemeral=True)
         return
 
-    try:
-        if not isinstance(channel, discord.TextChannel):
+        
+        if channel is not None and not isinstance(channel, discord.TextChannel):
             await interaction.response.send_message("Invalid channel type.", ephemeral=True)
             return
 
+    try:
         await channel.send(text)
         await interaction.response.send_message("Sent.", ephemeral=True)
 
