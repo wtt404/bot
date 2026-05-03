@@ -138,7 +138,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
         for chunk in chunks:
             embed = discord.Embed(description=chunk, color=0x000000)
             icon = None
-if message.guild and message.guild.icon:
+    if message.guild and message.guild.icon:
     icon = message.guild.icon.url
 
 embed.set_footer(
