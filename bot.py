@@ -139,12 +139,12 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
             embed = discord.Embed(description=chunk, color=0x000000)
             icon = None
         if interaction.guild and interaction.guild.icon:
-    icon = interaction.guild.icon.url
+            icon = interaction.guild.icon.url
 
-embed.set_footer(
-    text=f"Translated from {lang_name}",
-    icon_url=icon
-)
+             embed.set_footer(
+             text=f"Translated from {lang_name}",
+             icon_url=icon
+                )
 
             await interaction.response.send_message(embed=embed)
 
