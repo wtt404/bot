@@ -141,7 +141,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
         chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
 
         for chunk in chunks:
-            embed = discord.Embed(description=chunk, color=0x000000)
+            embed = discord.Embed(description=chunk, color=0x40B8DB)
             icon = None
         if interaction.guild and interaction.guild.icon:
             icon = interaction.guild.icon.url
@@ -242,7 +242,7 @@ async def on_message(message):
         if translated:
             chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
             for chunk in chunks:
-                embed = discord.Embed(description=chunk, color=0x000000)
+                embed = discord.Embed(description=chunk, color=0x40B8DB)
                 icon = None
             if message.guild and message.guild.icon:
                icon = message.guild.icon.url
