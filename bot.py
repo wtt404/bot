@@ -234,7 +234,7 @@ async def on_message(message):
                 icon_url=icon
                    )
                 
-              await message.reply(embed=embed)
+            await message.reply(embed=embed)
         return
 
 # --- Run ---
