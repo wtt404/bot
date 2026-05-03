@@ -220,6 +220,15 @@ async def on_message(message):
         elif "t.me" in url:
             text = get_telegram_text(url)
 
+        clean = re.sub(r"[^\w\s]", "", text)
+        
+        try:
+            lang = detect(clean)
+        except: 
+            lang = "unknown"
+        
+        lang_name = LANG_NAMES.get(lang, lang.upper())
+        
         translated = translate(text)
 
         if translated:
