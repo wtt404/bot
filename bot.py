@@ -109,11 +109,15 @@ async def toggle(ctx):
     if not has_role(ctx):
         await ctx.send("No permission.")
         return
+        
+    translation_enabled = {}
+    guild_id = ctx.guild.id
 
-    global translation_enabled
-    translation_enabled = not translation_enabled
-    status = "ON" if translation_enabled else "OFF"
-    await ctx.send(f"Translation is now {status}")
+current = translation_enabled.get(guild_id, True)
+translation_enabled[guild_id] = not current
+
+status = "ON" if translation_enabled[guild_id] else "OFF"
+await ctx.send(f"Translation is now {status} for this server")
 
 # --- NEW SLASH COMMAND ---
 @bot.tree.command(name="translate", description="Translate text to English")
@@ -215,7 +219,8 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-    if not translation_enabled:
+    if message.guild:
+    if not translation_enabled.get(message.guild.id, True):
         return
 
     urls = re.findall(r"https?://[^\s]+", message.content)
