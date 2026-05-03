@@ -117,7 +117,8 @@ current = translation_enabled.get(guild_id, True)
 translation_enabled[guild_id] = not current
 
 status = "ON" if translation_enabled[guild_id] else "OFF"
-await ctx.send(f"Translation is now {status} for this server")
+
+                   await ctx.send(f"Translation is now {status} for this server")
 
 # --- NEW SLASH COMMAND ---
 @bot.tree.command(name="translate", description="Translate text to English")
