@@ -2,7 +2,7 @@ name: Discord Bot
 
 on:
   schedule:
-    - cron: "0 */5 * * *"   # every 5 hours
+    - cron: "50 */5 * * *"   # every 5 hours
   workflow_dispatch:
 
 jobs:
