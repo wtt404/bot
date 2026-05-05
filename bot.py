@@ -255,4 +255,4 @@ async def on_message(message):
         return
 
 # --- Run ---
-bot.run(os.environ["DISCORD_TOKEN"]) 
+bot.run(os.environ["DISCORD_TOKEN"].reconnect=True)
