@@ -156,7 +156,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
             icon = interaction.guild.icon.url
 
         embed.set_footer(
-            text=f"Server: {interaction.guild}",
+            text=f"{interaction.guild}",
             icon_url=icon
         )
 
