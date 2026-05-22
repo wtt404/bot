@@ -345,6 +345,7 @@ class SuggestionView(discord.ui.View):
 
         if not interaction.message.embeds:
             return
+            
         if not message.embeds:
             continue
      
