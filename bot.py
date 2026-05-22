@@ -78,6 +78,7 @@ print("CWD:",os.getcwd())
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 SUGGESTION_CHANNEL_ID = 1507404682849681408
+DB_FILE = "suggestions.db"
 # --- Role Check ---
 def has_role(ctx):
     if not ctx.guild:
@@ -766,7 +767,7 @@ async def on_message(message):
 async def on_ready():
     
     init_db()
-
+    print("DB INIT OK")
     bot.add_view(SuggestionView())
 
     if not check_suggestions.is_running():
