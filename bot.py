@@ -346,8 +346,8 @@ class SuggestionView(discord.ui.View):
         if not interaction.message.embeds:
             return
             
-        if not message.embeds:
-            continue
+        if not interaction.message.embeds:
+            return
      
         old_embed = interaction.message.embeds[0]
 
