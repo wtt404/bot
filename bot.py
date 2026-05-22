@@ -123,8 +123,12 @@ async def toggle(ctx):
 
 # --- Suggestions ---
 
-DB_FILE = "suggestions.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+DB_FILE = os.path.join(
+    BASE_DIR,
+    "suggestions.db"
+)
 
 # -------------------------
 # DATABASE
