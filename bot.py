@@ -333,7 +333,7 @@ class SuggestionView(discord.ui.View):
         )
 
         for field in old_embed.fields:
-            if field.name not in ["👍 Upvotes", "👎 Downvotes"]:
+            if field.name not in ["⬆️", "⬇️"]:
                 embed.add_field(
                     name=field.name,
                     value=field.value,
@@ -341,13 +341,13 @@ class SuggestionView(discord.ui.View):
                 )
 
         embed.add_field(
-            name="👍 Upvotes",
+            name="⬆️ Upvotes",
             value=str(upvotes),
             inline=True
         )
 
         embed.add_field(
-            name="👎 Downvotes",
+            name="⬇️ Downvotes",
             value=str(downvotes),
             inline=True
         )
@@ -363,12 +363,12 @@ class SuggestionView(discord.ui.View):
         )
 
         await interaction.response.send_message(
-            f"Vote registered: {'👍' if vote_type == 'up' else '👎'}",
+            f"Vote registered: {'⬆️ ' if vote_type == 'up' else '⬇️ '}",
             ephemeral=True
         )
 
     @discord.ui.button(
-        label="👍",
+        label="⬆️ ",
         style=discord.ButtonStyle.green,
         custom_id="suggest_upvote"
     )
@@ -380,7 +380,7 @@ class SuggestionView(discord.ui.View):
         await self.handle_vote(interaction, "up")
 
     @discord.ui.button(
-        label="👎",
+        label="⬇️ ",
         style=discord.ButtonStyle.red,
         custom_id="suggest_downvote"
     )
@@ -432,13 +432,13 @@ async def suggest(
     )
 
     embed.add_field(
-        name="👍 Upvotes",
+        name="⬆️ Upvotes",
         value="0",
         inline=True
     )
 
     embed.add_field(
-        name="👎 Downvotes",
+        name="⬇️ Downvotes",
         value="0",
         inline=True
     )
