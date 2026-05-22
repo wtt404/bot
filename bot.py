@@ -368,7 +368,7 @@ class SuggestionView(discord.ui.View):
         )
 
     @discord.ui.button(
-        label="⬆️ ",
+        label="⬆️",
         style=discord.ButtonStyle.green,
         custom_id="suggest_upvote"
     )
@@ -380,7 +380,7 @@ class SuggestionView(discord.ui.View):
         await self.handle_vote(interaction, "up")
 
     @discord.ui.button(
-        label="⬇️ ",
+        label="⬇️",
         style=discord.ButtonStyle.red,
         custom_id="suggest_downvote"
     )
