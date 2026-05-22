@@ -120,18 +120,174 @@ async def toggle(ctx):
     await ctx.send(f"Translation is now {status}")
 
 # --- Suggestions ---
-# Stores votes per message
-# Format:
-# {
-#     message_id: {
-#         user_id: "up" or "down"
-#     }
-# }
 
-votes = {}
+DB_FILE = "suggestions.db"
 
+
+# -------------------------
+# DATABASE
+# -------------------------
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS suggestions (
+        message_id INTEGER PRIMARY KEY,
+        channel_id INTEGER,
+        guild_id INTEGER,
+        author_id INTEGER,
+        suggestion TEXT,
+        created_at TEXT,
+        closed INTEGER DEFAULT 0
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS votes (
+        message_id INTEGER,
+        user_id INTEGER,
+        vote_type TEXT,
+        PRIMARY KEY(message_id, user_id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def add_suggestion(
+    message_id,
+    channel_id,
+    guild_id,
+    author_id,
+    suggestion
+):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    INSERT INTO suggestions (
+        message_id,
+        channel_id,
+        guild_id,
+        author_id,
+        suggestion,
+        created_at,
+        closed
+    )
+    VALUES (?, ?, ?, ?, ?, ?, 0)
+    """, (
+        message_id,
+        channel_id,
+        guild_id,
+        author_id,
+        suggestion,
+        datetime.utcnow().isoformat()
+    ))
+
+    conn.commit()
+    conn.close()
+
+
+def get_vote_counts(message_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    SELECT COUNT(*)
+    FROM votes
+    WHERE message_id = ?
+    AND vote_type = 'up'
+    """, (message_id,))
+    upvotes = c.fetchone()[0]
+
+    c.execute("""
+    SELECT COUNT(*)
+    FROM votes
+    WHERE message_id = ?
+    AND vote_type = 'down'
+    """, (message_id,))
+    downvotes = c.fetchone()[0]
+
+    conn.close()
+
+    return upvotes, downvotes
+
+
+def get_user_vote(message_id, user_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    SELECT vote_type
+    FROM votes
+    WHERE message_id = ?
+    AND user_id = ?
+    """, (message_id, user_id))
+
+    row = c.fetchone()
+
+    conn.close()
+
+    return row[0] if row else None
+
+
+def set_vote(message_id, user_id, vote_type):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    INSERT OR REPLACE INTO votes (
+        message_id,
+        user_id,
+        vote_type
+    )
+    VALUES (?, ?, ?)
+    """, (message_id, user_id, vote_type))
+
+    conn.commit()
+    conn.close()
+
+
+def get_open_suggestions():
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    SELECT *
+    FROM suggestions
+    WHERE closed = 0
+    """)
+
+    rows = c.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+def close_suggestion(message_id):
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+
+    c.execute("""
+    UPDATE suggestions
+    SET closed = 1
+    WHERE message_id = ?
+    """, (message_id,))
+
+    conn.commit()
+    conn.close()
+
+
+# -------------------------
+# VIEW
+# -------------------------
 
 class SuggestionView(discord.ui.View):
+
     def __init__(self):
         super().__init__(timeout=None)
 
@@ -144,58 +300,45 @@ class SuggestionView(discord.ui.View):
         message_id = interaction.message.id
         user_id = interaction.user.id
 
-        # Create message entry if missing
-        if message_id not in votes:
-            votes[message_id] = {}
+        current_vote = get_user_vote(
+            message_id,
+            user_id
+        )
 
-        user_votes = votes[message_id]
+        if current_vote == vote_type:
 
-        # User already voted
-        if user_id in user_votes:
+            await interaction.response.send_message(
+                "You already voted that.",
+                ephemeral=True
+            )
+            return
 
-            current_vote = user_votes[user_id]
+        set_vote(
+            message_id,
+            user_id,
+            vote_type
+        )
 
-            # Prevent duplicate vote
-            if current_vote == vote_type:
-                await interaction.response.send_message(
-                    "You already voted that.",
-                    ephemeral=True
+        upvotes, downvotes = get_vote_counts(message_id)
+
+        if not interaction.message.embeds:
+            return
+
+        old_embed = interaction.message.embeds[0]
+
+        embed = discord.Embed(
+            title=old_embed.title,
+            description=old_embed.description,
+            color=old_embed.color
+        )
+
+        for field in old_embed.fields:
+            if field.name not in ["👍 Upvotes", "👎 Downvotes"]:
+                embed.add_field(
+                    name=field.name,
+                    value=field.value,
+                    inline=field.inline
                 )
-                return
-
-            # Switch vote
-            user_votes[user_id] = vote_type
-
-            await interaction.response.send_message(
-                f"You switched your vote to {'👍' if vote_type == 'up' else '👎'}",
-                ephemeral=True
-            )
-
-        else:
-            # First vote
-            user_votes[user_id] = vote_type
-
-            await interaction.response.send_message(
-                f"You voted {'👍' if vote_type == 'up' else '👎'}",
-                ephemeral=True
-            )
-
-        # Count votes
-        upvotes = sum(
-            1 for vote in user_votes.values()
-            if vote == "up"
-        )
-
-        downvotes = sum(
-            1 for vote in user_votes.values()
-            if vote == "down"
-        )
-
-        # Update embed
-        embed = interaction.message.embeds[0]
-
-        # Remove old vote field if exists
-        embed.clear_fields()
 
         embed.add_field(
             name="👍 Upvotes",
@@ -209,9 +352,19 @@ class SuggestionView(discord.ui.View):
             inline=True
         )
 
+        embed.set_footer(
+            text=old_embed.footer.text,
+            icon_url=old_embed.footer.icon_url
+        )
+
         await interaction.message.edit(
             embed=embed,
             view=self
+        )
+
+        await interaction.response.send_message(
+            f"Vote registered: {'👍' if vote_type == 'up' else '👎'}",
+            ephemeral=True
         )
 
     @discord.ui.button(
@@ -238,64 +391,182 @@ class SuggestionView(discord.ui.View):
     ):
         await self.handle_vote(interaction, "down")
 
-        
-@bot.tree.command(name="suggest", description="Send a suggestion")
+
+# -------------------------
+# SLASH COMMAND
+# -------------------------
+
+@bot.tree.command(
+    name="suggest",
+    description="Send a suggestion"
+)
 @app_commands.describe(
     suggestion="Your suggestion"
 )
-async def suggest(interaction: discord.Interaction, suggestion: str):
+async def suggest(
+    interaction: discord.Interaction,
+    suggestion: str
+):
 
-    try:
-        suggestion_channel = bot.get_channel(SUGGESTION_CHANNEL_ID)
+    suggestion_channel = bot.get_channel(
+        SUGGESTION_CHANNEL_ID
+    )
 
-        if suggestion_channel is None:
-            await interaction.response.send_message(
-                "Suggestion channel not found.",
-                ephemeral=True
-            )
-            return
-
-        embed = discord.Embed(
-            title="New Suggestion",
-            description=suggestion,
-            color=0x40B8DB
-        )
-
-        embed.add_field(
-            name="Suggested by",
-            value=f"{interaction.user.mention} ({interaction.user})",
-            inline=False
-        )
-
-        icon = None
-        if interaction.guild and interaction.guild.icon:
-            icon = interaction.guild.icon.url
-
-        embed.set_footer(
-            text=f"{interaction.guild}",
-            icon_url=icon
-        )
-
+    if suggestion_channel is None:
         await interaction.response.send_message(
-            "Suggestion sent!",
-            ephemeral=False
+            "Suggestion channel not found.",
+            ephemeral=True
         )
+        return
 
-        await asyncio.sleep(3)
+    embed = discord.Embed(
+        title="New Suggestion",
+        description=suggestion,
+        color=0x40B8DB
+    )
 
-        try:
-            await interaction.delete_original_response()
-        except:
-            pass
+    embed.add_field(
+        name="Suggested by",
+        value=f"{interaction.user.mention} ({interaction.user})",
+        inline=False
+    )
 
-    except Exception as e:
-        print("Suggest command error:", e)
+    embed.add_field(
+        name="👍 Upvotes",
+        value="0",
+        inline=True
+    )
 
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                "Failed to send suggestion.",
-                ephemeral=True
-        )
+    embed.add_field(
+        name="👎 Downvotes",
+        value="0",
+        inline=True
+    )
+
+    icon = None
+
+    if interaction.guild and interaction.guild.icon:
+        icon = interaction.guild.icon.url
+
+    embed.set_footer(
+        text=f"{interaction.guild}",
+        icon_url=icon
+    )
+
+    msg = await suggestion_channel.send(
+        embed=embed,
+        view=SuggestionView()
+    )
+
+    add_suggestion(
+        msg.id,
+        msg.channel.id,
+        interaction.guild.id,
+        interaction.user.id,
+        suggestion
+    )
+
+    await interaction.response.send_message(
+        "Suggestion sent!",
+        ephemeral=True
+    )
+
+
+# -------------------------
+# AUTO CLOSE LOOP
+# -------------------------
+
+@tasks.loop(minutes=5)
+async def check_suggestions():
+
+    suggestions = get_open_suggestions()
+
+    for s in suggestions:
+
+        (
+            message_id,
+            channel_id,
+            guild_id,
+            author_id,
+            suggestion,
+            created_at,
+            closed
+        ) = s
+
+        created_dt = datetime.fromisoformat(created_at)
+
+        if datetime.utcnow() >= created_dt + timedelta(days=2):
+
+            try:
+
+                channel = bot.get_channel(channel_id)
+
+                if channel is None:
+                    continue
+
+                message = await channel.fetch_message(message_id)
+
+                upvotes, downvotes = get_vote_counts(message_id)
+
+                total = upvotes + downvotes
+
+                if total == 0:
+                    up_percent = 0
+                    down_percent = 0
+                else:
+                    up_percent = round(
+                        (upvotes / total) * 100,
+                        1
+                    )
+
+                    down_percent = round(
+                        (downvotes / total) * 100,
+                        1
+                    )
+
+                old_embed = message.embeds[0]
+
+                embed = discord.Embed(
+                    title=old_embed.title,
+                    description=old_embed.description,
+                    color=discord.Color.red()
+                )
+
+                for field in old_embed.fields:
+                    if field.name not in [
+                        "Voting Closed"
+                    ]:
+                        embed.add_field(
+                            name=field.name,
+                            value=field.value,
+                            inline=field.inline
+                        )
+
+                embed.add_field(
+                    name="Voting Closed",
+                    value=(
+                        f"👍 {upvotes} ({up_percent}%)\n"
+                        f"👎 {downvotes} ({down_percent}%)"
+                    ),
+                    inline=False
+                )
+
+                embed.set_footer(
+                    text=old_embed.footer.text,
+                    icon_url=old_embed.footer.icon_url
+                )
+
+                await message.edit(
+                    embed=embed,
+                    view=None
+                )
+
+                close_suggestion(message_id)
+
+            except Exception as e:
+                print(
+                    f"Suggestion close error: {e}"
+                )
 
 # --- NEW SLASH COMMAND ---
 @bot.tree.command(name="translate", description="Translate text to English")
@@ -380,6 +651,13 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
 # --- Events ---
 @bot.event
 async def on_ready():
+    init_db()
+
+    bot.add_view(SuggestionView())
+
+    if not check_suggestions.is_running():
+        check_suggestions.start()
+    
     await bot.tree.sync()  # sync slash command
     print(f"Logged in as {bot.user}")
 
@@ -435,44 +713,6 @@ async def on_message(message):
                 
             await message.reply(embed=embed)
         return
-# --- Loops ---
-@tasks.loop(minutes=5)
-async def check_suggestions():
 
-    suggestions = get_open_suggestions()
-
-    for s in suggestions:
-
-        if datetime.utcnow() >= s.created_at + timedelta(days=2):
-
-            channel = bot.get_channel(s.channel_id)
-
-            message = await channel.fetch_message(s.message_id)
-
-            total = s.upvotes + s.downvotes
-
-            if total == 0:
-                up_percent = 0
-                down_percent = 0
-            else:
-                up_percent = round((s.upvotes / total) * 100, 1)
-                down_percent = round((s.downvotes / total) * 100, 1)
-
-            embed = message.embeds[0]
-
-            embed.color = discord.Color.red()
-
-            embed.add_field(
-                name="Voting Closed",
-                value=(
-                    f"👍 {s.upvotes} ({up_percent}%)\n"
-                    f"👎 {s.downvotes} ({down_percent}%)"
-                ),
-                inline=False
-            )
-
-            await message.edit(embed=embed, view=None)
-
-            mark_closed(s.id) 
 # --- Run ---
 bot.run(os.environ["DISCORD_TOKEN"])
