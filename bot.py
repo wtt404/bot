@@ -369,7 +369,7 @@ class SuggestionView(discord.ui.View):
 
     @discord.ui.button(
         label="⬆️",
-        style=discord.ButtonStyle.green,
+        style=discord.ButtonStyle.grey,
         custom_id="suggest_upvote"
     )
     async def upvote(
@@ -381,7 +381,7 @@ class SuggestionView(discord.ui.View):
 
     @discord.ui.button(
         label="⬇️",
-        style=discord.ButtonStyle.red,
+        style=discord.ButtonStyle.grey,
         custom_id="suggest_downvote"
     )
     async def downvote(
@@ -432,13 +432,13 @@ async def suggest(
     )
 
     embed.add_field(
-        name="⬆️ Upvotes",
+        name="⬆️",
         value="0",
         inline=True
     )
 
     embed.add_field(
-        name="⬇️ Downvotes",
+        name="⬇️",
         value="0",
         inline=True
     )
