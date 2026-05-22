@@ -1,4 +1,7 @@
 import html
+import sqlite3
+import time
+from discord.ext import tasks
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -117,6 +120,125 @@ async def toggle(ctx):
     await ctx.send(f"Translation is now {status}")
 
 # --- Suggestions ---
+# Stores votes per message
+# Format:
+# {
+#     message_id: {
+#         user_id: "up" or "down"
+#     }
+# }
+
+votes = {}
+
+
+class SuggestionView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    async def handle_vote(
+        self,
+        interaction: discord.Interaction,
+        vote_type: str
+    ):
+
+        message_id = interaction.message.id
+        user_id = interaction.user.id
+
+        # Create message entry if missing
+        if message_id not in votes:
+            votes[message_id] = {}
+
+        user_votes = votes[message_id]
+
+        # User already voted
+        if user_id in user_votes:
+
+            current_vote = user_votes[user_id]
+
+            # Prevent duplicate vote
+            if current_vote == vote_type:
+                await interaction.response.send_message(
+                    "You already voted that.",
+                    ephemeral=True
+                )
+                return
+
+            # Switch vote
+            user_votes[user_id] = vote_type
+
+            await interaction.response.send_message(
+                f"You switched your vote to {'👍' if vote_type == 'up' else '👎'}",
+                ephemeral=True
+            )
+
+        else:
+            # First vote
+            user_votes[user_id] = vote_type
+
+            await interaction.response.send_message(
+                f"You voted {'👍' if vote_type == 'up' else '👎'}",
+                ephemeral=True
+            )
+
+        # Count votes
+        upvotes = sum(
+            1 for vote in user_votes.values()
+            if vote == "up"
+        )
+
+        downvotes = sum(
+            1 for vote in user_votes.values()
+            if vote == "down"
+        )
+
+        # Update embed
+        embed = interaction.message.embeds[0]
+
+        # Remove old vote field if exists
+        embed.clear_fields()
+
+        embed.add_field(
+            name="👍 Upvotes",
+            value=str(upvotes),
+            inline=True
+        )
+
+        embed.add_field(
+            name="👎 Downvotes",
+            value=str(downvotes),
+            inline=True
+        )
+
+        await interaction.message.edit(
+            embed=embed,
+            view=self
+        )
+
+    @discord.ui.button(
+        label="👍",
+        style=discord.ButtonStyle.green,
+        custom_id="suggest_upvote"
+    )
+    async def upvote(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        await self.handle_vote(interaction, "up")
+
+    @discord.ui.button(
+        label="👎",
+        style=discord.ButtonStyle.red,
+        custom_id="suggest_downvote"
+    )
+    async def downvote(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+        await self.handle_vote(interaction, "down")
+
+        
 @bot.tree.command(name="suggest", description="Send a suggestion")
 @app_commands.describe(
     suggestion="Your suggestion"
@@ -145,12 +267,6 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
             inline=False
         )
 
-        embed.add_field(
-            name="Time",
-            value=f"<t:{int(interaction.created_at.timestamp())}:F>",
-            inline=False
-        )
-
         icon = None
         if interaction.guild and interaction.guild.icon:
             icon = interaction.guild.icon.url
@@ -159,11 +275,6 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
             text=f"{interaction.guild}",
             icon_url=icon
         )
-
-        msg = await suggestion_channel.send(embed=embed)
-
-        await msg.add_reaction("⬆️")
-        await msg.add_reaction("⬇️")
 
         await interaction.response.send_message(
             "Suggestion sent!",
@@ -324,6 +435,44 @@ async def on_message(message):
                 
             await message.reply(embed=embed)
         return
+# --- Loops ---
+@tasks.loop(minutes=5)
+async def check_suggestions():
 
+    suggestions = get_open_suggestions()
+
+    for s in suggestions:
+
+        if datetime.utcnow() >= s.created_at + timedelta(days=2):
+
+            channel = bot.get_channel(s.channel_id)
+
+            message = await channel.fetch_message(s.message_id)
+
+            total = s.upvotes + s.downvotes
+
+            if total == 0:
+                up_percent = 0
+                down_percent = 0
+            else:
+                up_percent = round((s.upvotes / total) * 100, 1)
+                down_percent = round((s.downvotes / total) * 100, 1)
+
+            embed = message.embeds[0]
+
+            embed.color = discord.Color.red()
+
+            embed.add_field(
+                name="Voting Closed",
+                value=(
+                    f"👍 {s.upvotes} ({up_percent}%)\n"
+                    f"👎 {s.downvotes} ({down_percent}%)"
+                ),
+                inline=False
+            )
+
+            await message.edit(embed=embed, view=None)
+
+            mark_closed(s.id) 
 # --- Run ---
 bot.run(os.environ["DISCORD_TOKEN"])
