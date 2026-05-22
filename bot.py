@@ -7,6 +7,7 @@ import requests
 from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
+import asyncio
 
 LANG_NAMES = {
     "ar": "Arabic",
@@ -41,7 +42,7 @@ translation_enabled = True
 
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
-
+SUGGESTION_CHANNEL_ID = 1507404682849681408
 # --- Role Check ---
 def has_role(ctx):
     if not ctx.guild:
@@ -114,6 +115,76 @@ async def toggle(ctx):
     translation_enabled = not translation_enabled
     status = "ON" if translation_enabled else "OFF"
     await ctx.send(f"Translation is now {status}")
+
+# --- Suggestions ---
+@bot.tree.command(name="suggest", description="Send a suggestion")
+@app_commands.describe(
+    suggestion="Your suggestion"
+)
+async def suggest(interaction: discord.Interaction, suggestion: str):
+
+    try:
+        suggestion_channel = bot.get_channel(SUGGESTION_CHANNEL_ID)
+
+        if suggestion_channel is None:
+            await interaction.response.send_message(
+                "Suggestion channel not found.",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title="New Suggestion",
+            description=suggestion,
+            color=0x000000
+        )
+
+        embed.add_field(
+            name="Suggested by",
+            value=f"{interaction.user.mention} ({interaction.user})",
+            inline=False
+        )
+
+        embed.add_field(
+            name="Time",
+            value=f"<t:{int(interaction.created_at.timestamp())}:F>",
+            inline=False
+        )
+
+        icon = None
+        if interaction.guild and interaction.guild.icon:
+            icon = interaction.guild.icon.url
+
+        embed.set_footer(
+            text=f"Server: {interaction.guild}",
+            icon_url=icon
+        )
+
+        msg = await suggestion_channel.send(embed=embed)
+
+        await msg.add_reaction("⬆️")
+        await msg.add_reaction("⬇️")
+
+        await interaction.response.send_message(
+            "Suggestion sent!",
+            ephemeral=False
+        )
+
+        await asyncio.sleep(3)
+
+        try:
+            await interaction.delete_original_response()
+        except:
+            pass
+
+    except Exception as e:
+        print("Suggest command error:", e)
+
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "Failed to send suggestion.",
+                ephemeral=True
+        )
 
 # --- NEW SLASH COMMAND ---
 @bot.tree.command(name="translate", description="Translate text to English")
