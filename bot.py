@@ -1,10 +1,10 @@
 import html
 import sqlite3
 import time
-from discord.ext import tasks
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.ext import tasks
 import re
 import requests
 from deep_translator import GoogleTranslator
@@ -709,19 +709,6 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
         return
 
 # --- Events ---
-@bot.event 
-async def on_ready():
-    
-    init_db()
-
-    bot.add_view(SuggestionView())
-
-    if not check_suggestions.is_running():
-        check_suggestions.start()
-    
-    await bot.tree.sync()  # sync slash command
-    print(f"Logged in as {bot.user}")
-
 @bot.event
 async def on_message(message):
     global translation_enabled
@@ -774,6 +761,19 @@ async def on_message(message):
                 
             await message.reply(embed=embed)
         return
+
+@bot.event 
+async def on_ready():
+    
+    init_db()
+
+    bot.add_view(SuggestionView())
+
+    if not check_suggestions.is_running():
+        check_suggestions.start()
+    
+    await bot.tree.sync()  # sync slash command
+    print(f"Logged in as {bot.user}")
 
 # --- Run ---
 init_db()
