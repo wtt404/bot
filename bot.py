@@ -136,7 +136,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
         embed = discord.Embed(
             title="New Suggestion",
             description=suggestion,
-            color=0x000000
+            color=0x40B8DB
         )
 
         embed.add_field(
