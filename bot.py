@@ -679,7 +679,6 @@ async def on_ready():
     init_db()
 
     bot.add_view(SuggestionView())
-    bot.add_view(ClosedSuggestionView())
 
     if not check_suggestions.is_running():
         check_suggestions.start()
