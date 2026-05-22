@@ -11,6 +11,7 @@ from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
 import asyncio
+from datetime import datetime, timedelta
 
 LANG_NAMES = {
     "ar": "Arabic",
@@ -129,7 +130,10 @@ DB_FILE = "suggestions.db"
 # -------------------------
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -164,7 +168,10 @@ def add_suggestion(
     author_id,
     suggestion
 ):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -192,7 +199,10 @@ def add_suggestion(
 
 
 def get_vote_counts(message_id):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -217,7 +227,10 @@ def get_vote_counts(message_id):
 
 
 def get_user_vote(message_id, user_id):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -235,7 +248,10 @@ def get_user_vote(message_id, user_id):
 
 
 def set_vote(message_id, user_id, vote_type):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -252,7 +268,10 @@ def set_vote(message_id, user_id, vote_type):
 
 
 def get_open_suggestions():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -269,7 +288,10 @@ def get_open_suggestions():
 
 
 def close_suggestion(message_id):
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(
+        DB_FILE,
+        timeout=30
+    )
     c = conn.cursor()
 
     c.execute("""
@@ -323,7 +345,9 @@ class SuggestionView(discord.ui.View):
 
         if not interaction.message.embeds:
             return
-
+        if not message.embeds:
+            continue
+     
         old_embed = interaction.message.embeds[0]
 
         embed = discord.Embed(
@@ -341,13 +365,13 @@ class SuggestionView(discord.ui.View):
                 )
 
         embed.add_field(
-            name="⬆️ Upvotes",
+            name="⬆️",
             value=str(upvotes),
             inline=True
         )
 
         embed.add_field(
-            name="⬇️ Downvotes",
+            name="⬇️",
             value=str(downvotes),
             inline=True
         )
@@ -654,6 +678,7 @@ async def on_ready():
     init_db()
 
     bot.add_view(SuggestionView())
+    bot.add_view(ClosedSuggestionView())
 
     if not check_suggestions.is_running():
         check_suggestions.start()
