@@ -44,6 +44,7 @@ bot = commands.Bot(command_prefix="+", intents=intents)
 
 translation_enabled = True
 
+print(os.getcwd())
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 SUGGESTION_CHANNEL_ID = 1507404682849681408
@@ -674,8 +675,9 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
         return
 
 # --- Events ---
-@bot.event
+@bot.event 
 async def on_ready():
+    
     init_db()
 
     bot.add_view(SuggestionView())
