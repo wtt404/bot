@@ -35,6 +35,36 @@ LANG_NAMES = {
 }
 
 # --- Setup ---
+def init_db():
+    print("INIT DB RUNNING")
+
+    conn = sqlite3.connect(DB_FILE, timeout=30)
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS suggestions (
+        message_id INTEGER PRIMARY KEY,
+        channel_id INTEGER,
+        guild_id INTEGER,
+        author_id INTEGER,
+        suggestion TEXT,
+        created_at TEXT,
+        closed INTEGER DEFAULT 0
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS votes (
+        message_id INTEGER,
+        user_id INTEGER,
+        vote_type TEXT,
+        PRIMARY KEY(message_id, user_id)
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -44,7 +74,7 @@ bot = commands.Bot(command_prefix="+", intents=intents)
 
 translation_enabled = True
 
-print(os.getcwd())
+print("CWD:",os.getcwd())
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 SUGGESTION_CHANNEL_ID = 1507404682849681408
@@ -746,4 +776,6 @@ async def on_message(message):
         return
 
 # --- Run ---
+init_db()
+print("MANUAL DB CREATED TEST")
 bot.run(os.environ["DISCORD_TOKEN"])
