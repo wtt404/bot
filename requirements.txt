@@ -1,11 +1,4 @@
-discord
-time
-html
-re
-requests
-os
-asyncio
-discord.ext
-deep_translator
-langdetect
-datetime
+discord.py>=2.4.0
+requests>=2.32.0
+deep-translator>=1.11.4
+langdetect>=1.0.9
