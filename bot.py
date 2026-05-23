@@ -38,10 +38,7 @@ intents.guilds = True
 intents.members = True
 
 bot = commands.Bot(command_prefix="+", intents=intents)
-
 translation_enabled = True
-
-print("CWD:",os.getcwd())
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 SUGGESTION_CHANNEL_ID = 1507404682849681408
@@ -199,7 +196,71 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
         print("Channel send error:", e)
         await interaction.response.send_message("Channel error.", ephemeral=True)
         return
+        
+# ---Suggestions---
+@bot.tree.command(name="suggest", description="Send a suggestion")
+@app_commands.describe(
+    suggestion="Your suggestion"
+)
+async def suggest(interaction: discord.Interaction, suggestion: str):
 
+    try:
+        suggestion_channel = bot.get_channel(SUGGESTION_CHANNEL_ID)
+
+        if suggestion_channel is None:
+            await interaction.response.send_message(
+                "Suggestion channel not found.",
+                ephemeral=True
+            )
+            return
+
+        embed = discord.Embed(
+            title="Suggestion",
+            description=suggestion,
+            color=0x40B8DB
+        )
+
+        embed.add_field(
+            name="Suggested by",
+            value=f"{interaction.user.mention} ({interaction.user})",
+            inline=False
+    
+        )
+
+        icon = None
+        if interaction.guild and interaction.guild.icon:
+            icon = interaction.guild.icon.url
+
+        embed.set_footer(
+            text=f"Server: {interaction.guild}",
+            icon_url=icon
+        )
+
+        msg = await suggestion_channel.send(embed=embed)
+
+        await msg.add_reaction("⬆️")
+        await msg.add_reaction("⬇️")
+
+        await interaction.response.send_message(
+            "Suggestion sent!",
+            ephemeral=False
+        )
+
+        await asyncio.sleep(3)
+
+        try:
+            await interaction.delete_original_response()
+        except:
+            pass
+
+    except Exception as e:
+        print("Suggest command error:", e)
+
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "Failed to send suggestion.",
+                ephemeral=True
+            ) 
 # --- Events ---
 @bot.event
 async def on_message(message):
