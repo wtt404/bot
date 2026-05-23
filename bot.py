@@ -55,7 +55,8 @@ def has_role(ctx):
         print("Not in a guild")
         return False
 
-    user_roles = [role.id for role in ctx.authornt(f"User: {ctx.author}, Roles: {user_roles}")
+    user_roles = [role.id for role in ctx.author.roles]
+    print(f"User: {ctx.author}, Roles: {user_roles}")
     check = any(role_id in user_roles for role_id in ROLE_IDS)
     print(f"Role check passed: {check}")
     return check
