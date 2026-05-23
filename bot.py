@@ -35,36 +35,6 @@ LANG_NAMES = {
 }
 
 # --- Setup ---
-def init_db():
-    print("INIT DB RUNNING")
-
-    conn = sqlite3.connect(DB_FILE, timeout=30)
-    c = conn.cursor()
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS suggestions (
-        message_id INTEGER PRIMARY KEY,
-        channel_id INTEGER,
-        guild_id INTEGER,
-        author_id INTEGER,
-        suggestion TEXT,
-        created_at TEXT,
-        closed INTEGER DEFAULT 0
-    )
-    """)
-
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS votes (
-        message_id INTEGER,
-        user_id INTEGER,
-        vote_type TEXT,
-        PRIMARY KEY(message_id, user_id)
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -85,8 +55,7 @@ def has_role(ctx):
         print("Not in a guild")
         return False
 
-    user_roles = [role.id for role in ctx.author.roles]
-    print(f"User: {ctx.author}, Roles: {user_roles}")
+    user_roles = [role.id for role in ctx.authornt(f"User: {ctx.author}, Roles: {user_roles}")
     check = any(role_id in user_roles for role_id in ROLE_IDS)
     print(f"Role check passed: {check}")
     return check
@@ -206,7 +175,8 @@ def add_suggestion(
 ):
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
     )
     c = conn.cursor()
 
@@ -237,7 +207,8 @@ def add_suggestion(
 def get_vote_counts(message_id):
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
     )
     c = conn.cursor()
 
@@ -265,7 +236,8 @@ def get_vote_counts(message_id):
 def get_user_vote(message_id, user_id):
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
     )
     c = conn.cursor()
 
@@ -286,7 +258,10 @@ def get_user_vote(message_id, user_id):
 def set_vote(message_id, user_id, vote_type):
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
+        
+        
     )
     c = conn.cursor()
 
@@ -306,7 +281,8 @@ def set_vote(message_id, user_id, vote_type):
 def get_open_suggestions():
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
     )
     c = conn.cursor()
 
@@ -326,7 +302,8 @@ def get_open_suggestions():
 def close_suggestion(message_id):
     conn = sqlite3.connect(
         DB_FILE,
-        timeout=30
+        timeout=30,
+        check_same_thread=False
     )
     c = conn.cursor()
 
@@ -648,6 +625,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
                 "Text is already in English.",
                 ephemeral=True
             )
+            return
     
         translated = GoogleTranslator(source="auto", target="en").translate(text)
         translated = html.unescape(translated)
@@ -768,7 +746,9 @@ async def on_ready():
     
     init_db()
     print("DB INIT OK")
+    if not hasattr(bot, "persistent_views_added"):
     bot.add_view(SuggestionView())
+    bot.persistent_views_added = True 
 
     if not check_suggestions.is_running():
         check_suggestions.start()
