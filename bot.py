@@ -747,10 +747,11 @@ async def on_ready():
     
     init_db()
     print("DB INIT OK")
-    if not hasattr(bot, "persistent_views_added"):
-    bot.add_view(SuggestionView())
-    bot.persistent_views_added = True 
+    if not hasattr(bot, "persistent_views_added"): 
+        bot.add_view(SuggestionView())
+        bot.persistent_views_added = True 
 
+               
     if not check_suggestions.is_running():
         check_suggestions.start()
     
