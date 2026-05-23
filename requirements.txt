@@ -1,5 +1,4 @@
 discord
-sqlite3
 time
 html
 re
