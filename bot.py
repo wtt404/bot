@@ -130,10 +130,7 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
         lang_name = LANG_NAMES.get(lang, lang.upper())
         
         if lang == "en":
-            await interaction.response.send_message(
-                "Text is already in English.",
-                ephemeral=True
-            )
+            await interaction.response.defer(ephemeral=True)
             return
     
         translated = GoogleTranslator(source="auto", target="en").translate(text)
