@@ -76,10 +76,11 @@ def get_text(url):
 def get_telegram_text(url):
     try:
         r = requests.get(url + "?embed=1", headers={"User-Agent": "Mozilla/5.0"})
-        html_content = r.text
-        match = re.search(r'class="tgme_widget_message_text.*?>(.*?)</div>', html_content, re.DOTALL)
+        html = r.text
+        match = re.search(r'class="tgme_widget_message_text.*?>(.*?)</div>', html, re.DOTALL)
         if match:
             text = re.sub(r"<.*?>", "", match.group(1))
+            import html
             text = html.unescape(text) 
             return text
         return ""
@@ -97,10 +98,10 @@ def translate(text):
         lang_name = LANG_NAMES.get(lang, lang.upper())
         if lang != "en":
             return GoogleTranslator(source="auto", target="en").translate(text)
-        return text
     except Exception as e:
         print("Translation error:", e)
         return None
+    return None
 
 # --- PREFIX COMMANDS ---
 @bot.command()
@@ -141,18 +142,17 @@ async def translate_cmd(interaction: discord.Interaction, text: str):
         
         chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
 
-        for idx, chunk in enumerate(chunks):
+        for chunk in chunks:
             embed = discord.Embed(description=chunk, color=0x40B8DB)
-            if interaction.guild and interaction.guild.icon:
-                embed.set_footer(
-                    text=f"Translated from {lang_name}",
-                    icon_url=interaction.guild.icon.url
+            icon = None
+        if interaction.guild and interaction.guild.icon:
+            icon = interaction.guild.icon.url
+            embed.set_footer(
+            text=f"Translated from {lang_name}",
+             icon_url=icon
                 )
-            
-            if idx == 0:
-                await interaction.response.send_message(embed=embed)
-            else:
-                await interaction.followup.send(embed=embed)
+
+            await interaction.response.send_message(embed=embed)
 
     except Exception as e:
         print("Translate command error:", e)
@@ -179,9 +179,10 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
         await interaction.response.send_message("No permission.", ephemeral=True)
         return
 
-    if channel is not None and not isinstance(channel, discord.TextChannel):
-        await interaction.response.send_message("Invalid channel type.", ephemeral=True)
-        return
+        
+        if channel is not None and not isinstance(channel, discord.TextChannel):
+            await interaction.response.send_message("Invalid channel type.", ephemeral=True)
+            return
 
     try:
         await channel.send(text)
@@ -239,13 +240,15 @@ async def on_message(message):
             chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
             for chunk in chunks:
                 embed = discord.Embed(description=chunk, color=0x40B8DB)
-                if message.guild and message.guild.icon:
-                    embed.set_footer(
-                        text=f"Translated from {lang_name}",
-                        icon_url=message.guild.icon.url
-                    )
+                icon = None
+            if message.guild and message.guild.icon:
+               icon = message.guild.icon.url
+               embed.set_footer(
+               text=f"Translated from {lang_name}",
+                icon_url=icon
+                   )
                 
-                await message.reply(embed=embed)
+            await message.reply(embed=embed)
         return
 
 @bot.event 
