@@ -358,6 +358,7 @@ async def panel(ctx):
     )
 
     await ctx.send(
+        "@here",
         embed=embed,
         view=TicketPanelView()
     )
