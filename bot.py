@@ -192,7 +192,7 @@ class TicketPanelView(discord.ui.View):
                 f"{interaction.user.mention}\n"
                 "Describe your issue and a staff member will check the ticket shortly."
             ),
-            color=0x40B8DB
+            color=0x16B25A
         )
 
         await channel.send(
@@ -354,7 +354,7 @@ async def panel(ctx):
     embed = discord.Embed(
         title="Support Tickets",
         description="Press the button below to create a ticket.",
-        color=0x40B8DB
+        color=0x16B25A
     )
 
     await ctx.send(
