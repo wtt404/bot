@@ -197,6 +197,7 @@ class TicketPanelView(discord.ui.View):
         )
 
         await channel.send(
+            "@here",
             embed=embed,
             view=TicketView()
         )
@@ -358,7 +359,7 @@ async def panel(ctx):
     )
 
     await ctx.send(
-        "@here",
+        
         embed=embed,
         view=TicketPanelView()
     )
