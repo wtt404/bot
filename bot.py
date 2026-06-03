@@ -339,13 +339,13 @@ class CloseConfirmView(discord.ui.View):
             ephemeral=True
         )
 
-@bot.command()
+@bot.command() 
 async def panel(ctx):
 
-    user_roles = [role.id for role in interaction.user.roles]
+    user_roles = [role.id for role in ctx.author.roles]
 
     if not any(role_id in user_roles for role_id in ROLE_IDS):
-        await interaction.response.send_message(
+        await ctx.send(
             "No permission.",
             ephemeral=True
         )
