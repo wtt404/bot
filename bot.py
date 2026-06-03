@@ -190,7 +190,7 @@ class TicketPanelView(discord.ui.View):
             title="Ticket Created",
             description=(
                 f"{interaction.user.mention}\n"
-                "Describe your issue."
+                "Describe your issue and a staff member will check the ticket shortly."
             ),
             color=0x40B8DB
         )
