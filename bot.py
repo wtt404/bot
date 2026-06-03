@@ -44,6 +44,7 @@ translation_enabled = True
 # --- CONFIG ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 SUGGESTION_CHANNEL_ID = 1507404682849681408
+TRANSCRIPT_LOG_CHANNEL_ID = 1511774899738509422
 
 # --- Role Check ---
 def has_role(ctx):
@@ -219,7 +220,12 @@ class TicketView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button
     ):
-
+        
+        await interaction.response.send_message(
+            "Are you sure you want to close this ticket?",
+            view=CloseConfirmView(),
+            ephemeral=True
+        )
         transcript = []
 
         async for message in interaction.channel.history(
@@ -250,8 +256,91 @@ class TicketView(discord.ui.View):
 
         await interaction.channel.delete()
 
-@bot.tree.command(name="panel", description="Create ticket panel")
-async def panel(interaction: discord.Interaction):
+class CloseConfirmView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+
+    @discord.ui.button(
+        label="Confirm",
+        style=discord.ButtonStyle.red
+    )
+    async def confirm(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        transcript_lines = []
+
+        async for msg in interaction.channel.history(
+            limit=None,
+            oldest_first=True
+        ):
+            content = msg.content if msg.content else "[Embed/Attachment]"
+
+            transcript_lines.append(
+                f"[{msg.created_at}] {msg.author}: {content}"
+            )
+
+        transcript_text = "\n".join(transcript_lines)
+
+        filename = f"{interaction.channel.name}.txt"
+
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(transcript_text)
+
+        log_channel = bot.get_channel(
+            TRANSCRIPT_LOG_CHANNEL_ID
+        )
+
+        if log_channel:
+
+            embed = discord.Embed(
+                title="Ticket Closed",
+                color=0xff0000
+            )
+
+            embed.add_field(
+                name="Channel",
+                value=interaction.channel.name,
+                inline=False
+            )
+
+            embed.add_field(
+                name="Closed By",
+                value=interaction.user.mention,
+                inline=False
+            )
+
+            await log_channel.send(
+                embed=embed,
+                file=discord.File(filename)
+            )
+
+        await interaction.response.send_message(
+            "Closing ticket...",
+            ephemeral=True
+        )
+
+        await interaction.channel.delete()
+
+    @discord.ui.button(
+        label="Cancel",
+        style=discord.ButtonStyle.gray
+    )
+    async def cancel(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        await interaction.response.send_message(
+            "Ticket closure cancelled.",
+            ephemeral=True
+        )
+
+@bot.command()
+async def panel(ctx):
 
     user_roles = [role.id for role in interaction.user.roles]
 
@@ -268,7 +357,7 @@ async def panel(interaction: discord.Interaction):
         color=0x40B8DB
     )
 
-    await interaction.response.send_message(
+    await ctx.send(
         embed=embed,
         view=TicketPanelView()
     )
