@@ -3,6 +3,8 @@ import time
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.ui import View, Button
+from io import StringIO
 import re
 import requests
 from deep_translator import GoogleTranslator
@@ -116,7 +118,161 @@ async def toggle(ctx):
     status = "ON" if translation_enabled else "OFF"
     await ctx.send(f"Translation is now {status}")
 
-# --- NEW SLASH COMMAND ---
+# --- SLASH COMMANDS ---
+
+class TicketPanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Create Ticket",
+        style=discord.ButtonStyle.green,
+        custom_id="create_ticket"
+    )
+    async def create_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        guild = interaction.guild
+
+        channel_name = (
+            f"ticket-{interaction.user.name}"
+            .lower()
+            .replace(" ", "-")
+        )
+
+        existing = discord.utils.get(
+            guild.channels,
+            name=channel_name
+        )
+
+        if existing:
+            await interaction.response.send_message(
+                f"You already have {existing.mention}",
+                ephemeral=True
+            )
+            return
+
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(
+                view_channel=False
+            ),
+            interaction.user: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True
+            ),
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                manage_channels=True
+            )
+        }
+
+        for role_id in ROLE_IDS:
+            role = guild.get_role(role_id)
+
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(
+                    view_channel=True,
+                    send_messages=True,
+                    read_message_history=True
+                )
+
+        channel = await guild.create_text_channel(
+            name=channel_name,
+            overwrites=overwrites
+        )
+
+        embed = discord.Embed(
+            title="Ticket Created",
+            description=(
+                f"{interaction.user.mention}\n"
+                "Describe your issue."
+            ),
+            color=0x40B8DB
+        )
+
+        await channel.send(
+            embed=embed,
+            view=TicketView()
+        )
+
+        await interaction.response.send_message(
+            f"Ticket created: {channel.mention}",
+            ephemeral=True
+        )
+
+class TicketView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Close Ticket",
+        style=discord.ButtonStyle.red,
+        custom_id="close_ticket"
+    )
+    async def close_ticket(
+        self,
+        interaction: discord.Interaction,
+        button: discord.ui.Button
+    ):
+
+        transcript = []
+
+        async for message in interaction.channel.history(
+            limit=None,
+            oldest_first=True
+        ):
+            transcript.append(
+                f"[{message.created_at}] "
+                f"{message.author}: "
+                f"{message.content}"
+            )
+
+        transcript_text = "\n".join(transcript)
+
+        file = discord.File(
+            StringIO(transcript_text),
+            filename=f"{interaction.channel.name}.txt"
+        )
+
+        await interaction.response.send_message(
+            "Closing ticket..."
+        )
+
+        await interaction.channel.send(
+            "Transcript:",
+            file=file
+        )
+
+        await interaction.channel.delete()
+
+@bot.tree.command(name="panel", description="Create ticket panel")
+async def panel(interaction: discord.Interaction):
+
+    user_roles = [role.id for role in interaction.user.roles]
+
+    if not any(role_id in user_roles for role_id in ROLE_IDS):
+        await interaction.response.send_message(
+            "No permission.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title="Support Tickets",
+        description="Press the button below to create a ticket.",
+        color=0x40B8DB
+    )
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=TicketPanelView()
+    )
+# --- 2 ---
 @bot.tree.command(name="translate", description="Translate text to English")
 @app_commands.describe(text="Text to translate")
 async def translate_cmd(interaction: discord.Interaction, text: str):
@@ -253,6 +409,9 @@ async def on_message(message):
 
 @bot.event 
 async def on_ready():
+    bot.add_view(TicketPanelView())
+    bot.add_view(TicketView())
+    
     await bot.tree.sync()  # sync slash command
     print(f"Logged in as {bot.user}")
 
