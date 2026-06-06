@@ -508,7 +508,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
     suggestions.append({
         "message_id": message.id,
         "channel_id": channel.id,
-        "end_time": int(time.time()) + 600,
+        "end_time": int(time.time()) + 172800,
         "ended": False
     })
 
@@ -520,7 +520,7 @@ async def suggest(interaction: discord.Interaction, suggestion: str):
     )
 
 # --- 4 check ---
-@tasks.loop(seconds=10)
+@tasks.loop(minutes=1)
 async def check_suggestions():
 
     suggestions = load_suggestions()
