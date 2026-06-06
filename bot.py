@@ -1,6 +1,8 @@
+import json
 import html
 import time
 import discord
+from discord.ext import tasks
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
@@ -41,9 +43,24 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="+", intents=intents)
 translation_enabled = True
-# --- CONFIG ---
+
+# --- IDs ---
 ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 1489466078525657220, 1489777324873355364]  # PUT YOUR ROLE ID
 TRANSCRIPT_LOG_CHANNEL_ID = 1511785846981005382
+SUGGESTION_CHANNEL_ID = 1507404682849681408
+SUGGESTION_LOG_CHANNEL_ID = 1511774899738509422
+
+# --- JSON ---
+def load_suggestions():
+    try:
+        with open("suggestions.json", "r") as f:
+            return json.load(f)
+    except:
+        return []
+
+def save_suggestions(data):
+    with open("suggestions.json", "w") as f:
+        json.dump(data, f, indent=4)
 
 # --- Role Check ---
 def has_role(ctx):
@@ -105,7 +122,7 @@ def translate(text):
         return None
     return None
 
-# --- PREFIX COMMANDS ---
+# --- COMMANDS 1---
 @bot.command()
 async def toggle(ctx):
     print("Toggle command triggered")
@@ -118,7 +135,7 @@ async def toggle(ctx):
     status = "ON" if translation_enabled else "OFF"
     await ctx.send(f"Translation is now {status}")
 
-# --- SLASH COMMANDS ---
+# --- 2 ---
 
 class TicketPanelView(discord.ui.View):
     def __init__(self):
@@ -362,7 +379,7 @@ async def panel(ctx):
         embed=embed,
         view=TicketPanelView()
     )
-# --- 2 ---
+# --- 3 ---
 @bot.tree.command(name="translate", description="Translate text to English")
 @app_commands.describe(text="Text to translate")
 async def translate_cmd(interaction: discord.Interaction, text: str):
@@ -442,7 +459,198 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
         print("Channel send error:", e)
         await interaction.response.send_message("Channel error.", ephemeral=True)
         return
-        
+
+#--- 4 ---
+@bot.tree.command(name="suggest", description="Send a suggestion")
+@app_commands.describe(
+    suggestion="Your suggestion"
+)
+async def suggest(interaction: discord.Interaction, suggestion: str):
+
+    channel = bot.get_channel(SUGGESTION_CHANNEL_ID)
+
+    if not channel:
+        await interaction.response.send_message(
+            "Suggestion channel not found.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title="Suggestion",
+        description=suggestion,
+        color=0xaac200
+    )
+
+    embed.add_field(
+        name="Suggested By",
+        value=interaction.user.mention,
+        inline=False
+    )
+
+    icon = None
+    
+    if interaction.guild and interaction.guild.icon:
+            icon = interaction.guild.icon.url
+
+    embed.set_footer(
+        text=f"{interaction.guild}",
+        icon_url=icon
+
+    )    
+    message = await channel.send(embed=embed)
+
+    await message.add_reaction("⬆️")
+    await message.add_reaction("⬇️")
+
+    suggestions = load_suggestions()
+
+    suggestions.append({
+        "message_id": message.id,
+        "channel_id": channel.id,
+        "end_time": int(time.time()) + 600,
+        "ended": False
+    })
+
+    save_suggestions(suggestions)
+
+    await interaction.response.send_message(
+        "Suggestion sent!",
+        delete_after=3
+    )
+
+# --- 4 check ---
+@tasks.loop(seconds=10)
+async def check_suggestions():
+
+    suggestions = load_suggestions()
+    changed = False
+
+    for suggestion in suggestions:
+
+        if suggestion["ended"]:
+            continue
+
+        if time.time() < suggestion["end_time"]:
+            continue
+
+        try:
+            channel = bot.get_channel(
+                suggestion["channel_id"]
+            )
+
+            if not channel:
+                continue
+
+            message = await channel.fetch_message(
+                suggestion["message_id"]
+            )
+
+            upvotes = 0
+            downvotes = 0
+
+            up_voters = []
+            down_voters = []
+
+            for reaction in message.reactions:
+
+                if str(reaction.emoji) == "⬆️":
+
+                    async for user in reaction.users():
+
+                        if not user.bot:
+                            up_voters.append(user.mention)
+
+                elif str(reaction.emoji) == "⬇️":
+
+                    async for user in reaction.users():
+
+                        if not user.bot:
+                            down_voters.append(user.mention)
+
+            for reaction in message.reactions:
+
+                if str(reaction.emoji) == "⬆️":
+                    upvotes = reaction.count - 1
+
+                elif str(reaction.emoji) == "⬇️":
+                    downvotes = reaction.count - 1
+
+            total = upvotes + downvotes
+
+            if total > 0:
+                up_percent = round(
+                    (upvotes / total) * 100
+                )
+
+                down_percent = round(
+                    (downvotes / total) * 100
+                )
+            else:
+                up_percent = 0
+                down_percent = 0
+
+            embed = message.embeds[0]
+
+            embed.add_field(
+                name="Voting Ended",
+                value=(
+                    f"⬆️ {up_percent}%\n"
+                    f"⬇️ {down_percent}%"
+                ),
+                inline=False
+            )
+
+            await message.edit(embed=embed)
+            log_channel = bot.get_channel(
+    SUGGESTION_LOG_CHANNEL_ID
+)
+
+            if log_channel:
+
+                log_embed = discord.Embed(
+                    title="Suggestion Vote Results",
+                    color=0x000000
+                )
+
+                log_embed.add_field(
+                    name="Suggestion",
+                    value=message.embeds[0].description,
+                    inline=False
+                )
+
+                log_embed.add_field(
+                    name="⬆️ Upvoters",
+                    value="\n".join(up_voters) if up_voters else "None",
+                    inline=False
+                )
+
+                log_embed.add_field(
+                    name="⬇️ Downvoters",
+                    value="\n".join(down_voters) if down_voters else "None",
+                    inline=False
+                )
+
+                log_embed.add_field(
+                    name="Results",
+                    value=(
+                        f"⬆️ {up_percent}% ({upvotes})\n"
+                        f"⬇️ {down_percent}% ({downvotes})"
+                    ),
+                    inline=False
+                )
+
+                await log_channel.send(embed=log_embed)
+
+            suggestion["ended"] = True
+            changed = True
+
+        except Exception as e:
+            print("Suggestion error:", e)
+
+    if changed:
+        save_suggestions(suggestions)
+
 # --- Events ---
 @bot.event
 async def on_message(message):
@@ -501,6 +709,9 @@ async def on_message(message):
 async def on_ready():
     bot.add_view(TicketPanelView())
     bot.add_view(TicketView())
+
+    if not check_suggestions.is_running():
+        check_suggestions.start()
     
     await bot.tree.sync()  # sync slash command
     print(f"Logged in as {bot.user}")
