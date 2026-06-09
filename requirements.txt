@@ -2,3 +2,5 @@ discord.py>=2.4.0
 requests>=2.32.0
 deep-translator>=1.11.4
 langdetect>=1.0.9
+aiohttp
+aiosqlite
