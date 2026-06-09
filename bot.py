@@ -775,6 +775,9 @@ async def on_message(message):
 
 @bot.event 
 async def on_ready():
+    if not hasattr(bot, "http_session"): 
+        bot.http_session = aiohttp.ClientSession()
+    
     bot.add_view(TicketPanelView())
     bot.add_view(TicketView())
 
