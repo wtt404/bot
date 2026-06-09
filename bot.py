@@ -1,6 +1,7 @@
 import json
 import html
 import time
+import aiosqlite
 import discord
 from discord.ext import tasks
 from discord.ext import commands
@@ -8,7 +9,7 @@ from discord import app_commands
 from discord.ui import View, Button
 from io import StringIO
 import re
-import requests
+import aiohttp
 from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
@@ -76,34 +77,71 @@ def has_role(ctx):
     return check
 
 # --- Twitter ---
-def get_text(url):
+async def get_text(url):
     try:
         url = url.replace("fixupx.com", "twitter.com").replace("fixup", "")
 
         if "fxtwitter.com" in url:
             api = url.replace("fxtwitter.com", "api.fxtwitter.com")
         else:
-            api = url.replace("twitter.com", "api.fxtwitter.com").replace("x.com", "api.fxtwitter.com")
+            api = (
+                url.replace("twitter.com", "api.fxtwitter.com")
+                .replace("x.com", "api.fxtwitter.com")
+            )
 
-        r = requests.get(api)
-        data = r.json()
+        timeout = aiohttp.ClientTimeout(total=10)
+
+        async with bot.http_session.get(
+            api,
+            timeout=timeout
+        ) as response:
+            data = await response.json()
+
         return data.get("tweet", {}).get("text", "")
+
     except Exception as e:
         print("Error getting Twitter text:", e)
         return ""
 
 # --- Telegram ---
-def get_telegram_text(url):
+async def get_telegram_text(url):
     try:
-        r = requests.get(url + "?embed=1", headers={"User-Agent": "Mozilla/5.0"})
-        html = r.text
-        match = re.search(r'class="tgme_widget_message_text.*?>(.*?)</div>', html, re.DOTALL)
-        if match:
-            text = re.sub(r"<.*?>", "", match.group(1))
-            import html
-            text = html.unescape(text) 
+        timeout = aiohttp.ClientTimeout(total=10)
+        
+        async with bot.http_session.get(
+            url + "?embed=1",
+            headers={"User-Agent": "Mozilla/5.0"}
+        ) as response:
+
+            page = await response.text()
+
+        matches = re.findall(
+            r'class="tgme_widget_message_text.*?>(.*?)</div>',
+            page,
+            re.DOTALL
+        )
+
+        for i, match in enumerate(matches):
+            text = re.sub(r"<.*?>", "", match)
+            text = html.unescape(text)
+
+        if matches:
+            text = matches[-1]
+
+            text = re.sub(r"<br\s*/?>", "\n", text)
+            text = re.sub(r"</p>", "\n", text)
+
+            text = re.sub(r"<.*?>", "", text)
+
+            text = html.unescape(text)
+
+            text = re.sub(r"\n{3,}", "\n\n", text)
+            text = text.strip()
+
             return text
+
         return ""
+
     except Exception as e:
         print("Error getting Telegram text:", e)
         return ""
@@ -113,14 +151,34 @@ def translate(text):
     try:
         if not text:
             return None
+            
         clean = re.sub(r"[^\w\s]", "", text)
         lang = detect(clean)
+        
         lang_name = LANG_NAMES.get(lang, lang.upper())
         if lang != "en":
-            return GoogleTranslator(source="auto", target="en").translate(text)
+            
+            paragraphs = text.splitlines()
+
+            translated_parts = []
+
+            for part in paragraphs:
+                if part.strip():
+                    translated_parts.append(
+                        GoogleTranslator(
+                            source="auto",
+                            target="en"
+                        ).translate(part)
+                    )
+                else:
+                    translated_parts.append("")
+
+            return "\n".join(translated_parts)
+        
     except Exception as e:
         print("Translation error:", e)
         return None
+        
     return None
 
 # --- COMMANDS 1---
@@ -685,9 +743,9 @@ async def on_message(message):
         text = ""
 
         if any(d in url for d in ["twitter.com", "x.com", "fxtwitter.com", "fixupx.com"]):
-            text = get_text(url)
+            text = await get_text(url)
         elif "t.me" in url:
-            text = get_telegram_text(url)
+            text = await get_telegram_text(url)
 
         clean = re.sub(r"[^\w\s]", "", text)
         
