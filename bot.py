@@ -49,6 +49,7 @@ ROLE_IDS = [1280015405846364171, 1280015168792694838, 1280014871773315103, 14894
 TRANSCRIPT_LOG_CHANNEL_ID = 1511785846981005382
 SUGGESTION_CHANNEL_ID = 1280209335515086929
 SUGGESTION_LOG_CHANNEL_ID = 1280016523293102081
+BLACKLISTED_SUGGESTION_ROLE_ID = 1419743909830987906
 
 # --- JSON ---
 def load_suggestions():
@@ -466,6 +467,15 @@ async def say_slash(interaction: discord.Interaction, text: str, channel: discor
     suggestion="Your suggestion"
 )
 async def suggest(interaction: discord.Interaction, suggestion: str):
+    user_roles = [role.id for role in interaction.user.roles]
+
+    if any(role_id in user_roles for role_id in BLACKLISTED_SUGGESTION_ROLE_ID
+          ):
+        await interaction.response.send_message(
+            "You cannot submit suggestions.",
+            ephemeral=True
+        )
+        return
 
     channel = bot.get_channel(SUGGESTION_CHANNEL_ID)
 
