@@ -8,6 +8,7 @@ from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
 from io import StringIO
+from telethon import TelegramClient
 import re
 import aiohttp
 from deep_translator import GoogleTranslator
@@ -41,6 +42,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+telegram_client = TelegramClient(
+    "telegram_session",
+    API_ID,
+    API_HASH
+)
 
 bot = commands.Bot(command_prefix="+", intents=intents)
 translation_enabled = True
@@ -96,15 +105,81 @@ async def get_text(url):
             timeout=timeout
         ) as response:
             data = await response.json()
+            
+        print(data)
 
-        return data.get("tweet", {}).get("text", "")
+        return {
+            "text": data.get("tweet", {}).get("text", ""),
+            "media": data.get("tweet", {}).get("media", {}).get("all", [])
+        }
 
     except Exception as e:
         print("Error getting Twitter text:", e)
-        return ""
+        return {
+            "text": "",
+            "media": []
+        }
+
+# --- media handling --- 
+async def get_media_files(media, original_url):
+    files = []
+    fallback_links = []
+
+    for i, item in enumerate(media):
+        try:
+            print(item["url"])
+            async with bot.http_session.get(item["url"]) as response:
+
+                print(response.status)
+
+                if response.status != 200:
+                    continue
+                size = response.content_length
+                
+                print("SIZE:", response.content_length)
+                print("TYPE:", item.get("type"))
+
+                if size and size > 10 * 1024 * 1024:
+                    
+                    if item.get("type") == "video":
+
+                        if "t.me" in original_url:
+                            fallback_links.append(original_url)
+
+                        else:
+                             fallback_links.append(
+                                 original_url
+                                     .replace("x.com", "d.fixupx.com")
+                                     .replace("twitter.com", "d.fixupx.com")
+                            )
+                        
+                    continue
+
+                data = await response.read()
+
+            extension = item["url"].split("?")[0].split(".")[-1]
+
+            filename = f"media_{i}.{extension}"
+
+            print("ITEM:", item)
+            print("FILENAME:", filename)
+            print("CONTENT TYPE:", response.headers.get("Content-Type"))
+            print("--------------------") 
+
+            files.append(
+                discord.File(
+                    io.BytesIO(data),
+                    filename=filename
+                )
+            )
+
+        except Exception as e:
+            print("Media download error:", e)
+
+    return files, list(set(fallback_links))
 
 # --- Telegram ---
-async def get_telegram_text(url):
+async def get_telegram_data(url):
     try:
         timeout = aiohttp.ClientTimeout(total=10)
         
@@ -114,16 +189,63 @@ async def get_telegram_text(url):
         ) as response:
 
             page = await response.text()
+            print("VIDEO TAG:", "<video" in page)
+            print("MP4:", ".mp4" in page)
+            print("TG VIDEO PLAYER:", "tgme_widget_message_video" in page)
 
+            start = page.find("tgme_widget_message_video")
+            
+            if start != -1:
+                print(page[start:start+3000])
+            
+        media = []
+
+        # Photos 
+        photo_matches = re.findall(
+            r'background-image:url\([\'"]?(.*?)[\'"]?\)',
+            page
+        )
+
+        for photo_url in photo_matches:
+            
+            photo_url = photo_url.strip("'\"")
+
+            photo_url = html.unescape(photo_url)
+
+            if photo_url.startswith("//"):
+                photo_url = "https:" + photo_url
+
+            if (
+                photo_url.startswith("https://telegram.org") or "/emoji/" in photo_url
+            ):
+                continue
+            
+            media.append({
+                "type": "photo",
+                "url": photo_url
+            })
+
+        # Vids
+        video_matches = re.findall(
+            r'<video.*?src="(.*?)"',
+            page,
+            re.DOTALL
+        )
+
+        for video_url in video_matches:
+            media.append({
+                "type": "video",
+                "url": html.unescape(video_url)
+            })
+
+        #text
         matches = re.findall(
             r'class="tgme_widget_message_text.*?>(.*?)</div>',
             page,
             re.DOTALL
         )
 
-        for i, match in enumerate(matches):
-            text = re.sub(r"<.*?>", "", match)
-            text = html.unescape(text)
+        text = ""
 
         if matches:
             text = matches[-1]
@@ -138,13 +260,91 @@ async def get_telegram_text(url):
             text = re.sub(r"\n{3,}", "\n\n", text)
             text = text.strip()
 
-            return text
+        print("RAW MEDIA:", media)
+        filtered_media = []
 
-        return ""
+        for item in media:
+            url = item["url"]
+
+            if item["type"] == "video":
+                if ".mp4" in url:
+                    filtered_media.append(item)
+
+        has_video = any(
+            item["type"] == "video"
+            for item in filtered_media
+        )
+
+        if not has_video:
+            filtered_media = media 
+        
+
+        print("FINAL MEDIA:", filtered_media)
+        
+        return {
+            "text": text,
+            "media": filtered_media
+        }
 
     except Exception as e:
         print("Error getting Telegram text:", e)
-        return ""
+        return {
+            "text": "",
+            "media": []
+                }
+
+# --- Telegram vids handle ---  
+async def get_telegram_video_file(url, discord_limit):
+    try:
+        match = re.search(r"t\.me/([^/]+)/(\d+)", url)
+
+        if not match:
+            return None
+
+        channel = match.group(1)
+        message_id = int(match.group(2))
+
+        entity = await telegram_client.get_entity(channel)
+
+        message = await telegram_client.get_messages(
+            entity,
+            ids=message_id
+        )
+
+        if not message or not message.media:
+            return None
+
+        media = message.media
+
+        if not hasattr(media, "alt_documents"):
+            return None
+
+        best_doc = None
+
+        for doc in media.alt_documents:
+            if (
+                doc.mime_type == "video/mp4"
+                and doc.size <= discord_limit
+            ):
+                if best_doc is None or doc.size > best_doc.size:
+                    best_doc = doc
+
+        if not best_doc:
+            return None
+
+        path = await telegram_client.download_media(
+            best_doc,
+            file=f"downloads/tg_{message_id}.mp4"
+        )
+
+        return discord.File(
+            path,
+            filename=f"telegram_video_{message_id}.mp4"
+        )
+
+    except Exception as e:
+        print("Telegram video error:", e)
+        return None
 
 # --- Translate ---
 def translate(text):
@@ -741,12 +941,42 @@ async def on_message(message):
 
     for url in urls:
         text = ""
+        media = []
+        telegram_video = None
 
-        if any(d in url for d in ["twitter.com", "x.com", "fxtwitter.com", "fixupx.com"]):
-            text = await get_text(url)
+        is_fixupx = any(d in url for d in [
+            "fixupx.com",
+            "fxtwitter.com"
+        ])
+
+        is_twitter = any(d in url for d in [
+            "twitter.com",
+            "x.com"
+        ])
+
+        if is_fixupx:
+            twitter_data = await get_text(url)
+
+            text = twitter_data["text"]
+            media = []
+
+        elif is_twitter:
+            twitter_data = await get_text(url)
+
+            text = twitter_data["text"]
+            media = twitter_data["media"]
+    
         elif "t.me" in url:
-            text = await get_telegram_text(url)
+            telegram_data = await get_telegram_data(url)
 
+            text = telegram_data["text"]
+            media = telegram_data["media"]
+
+            telegram_video = await get_telegram_video_file(
+                url,
+                message.guild.filesize_limit
+            )
+            
         clean = re.sub(r"[^\w\s]", "", text)
         
         try:
@@ -759,24 +989,106 @@ async def on_message(message):
         translated = translate(text)
 
         if translated:
-            chunks = [translated[i:i+4096] for i in range(0, len(translated), 4096)]
-            for chunk in chunks:
-                embed = discord.Embed(description=chunk, color=0x40B8DB)
-                icon = None
-            if message.guild and message.guild.icon:
-               icon = message.guild.icon.url
-               embed.set_footer(
-               text=f"Translated from {lang_name}",
-                icon_url=icon
-                   )
-                
-            await message.reply(embed=embed)
-        return
 
+            chunks = [
+                translated[i:i+4096]
+                for i in range(0, len(translated), 4096)
+            ]
+
+            files = []
+            fallback_links = []
+            
+            media_for_download = media
+
+            if telegram_video:
+                media_for_download = [
+                    item
+                    for item in media
+                    if item["type"] != "video"
+                ]
+            print("MEDIA BEFORE get_media_files:", media) 
+            files, fallback_links = await get_media_files(media_for_download, url)
+            if telegram_video:
+                files.append(telegram_video)
+
+            for i, chunk in enumerate(chunks):
+
+                embed = discord.Embed(
+                    description=chunk,
+                    color=0x40B8DB
+                )
+
+                if message.guild and message.guild.icon:
+                    embed.set_footer(
+                        text=f"Translated from {lang_name}",
+                        icon_url=message.guild.icon.url
+                    )
+
+                if i == 0:
+
+                    try:
+                        bot_reply = await message.reply(
+                            embed=embed,
+                            files=files,
+                            mention_author=False
+                        )
+
+                    except discord.HTTPException:
+                        bot_reply = await message.reply(
+                            embed=embed,
+                            mention_author=False
+                        )
+                        
+                    for file in files:
+                        try:
+                            if hasattr(file.fp, "name"):
+                                os.remove(file.fp.name)
+                        except:
+                            pass
+                    
+                    for link in fallback_links:
+                        await bot_reply.reply(
+                            link,
+                            mention_author=False
+                        )
+                else:
+                    await message.reply(
+                        embed=embed,
+                        mention_author=False
+                    )
+                    
+        elif media:
+            media_for_download = media 
+            if telegram_video:
+                media_for_download = [
+                    item
+                    for item in media
+                    if item["type"] != "video"
+                ]
+            print("MEDIA BEFORE get_media_files:", media)   
+            files, fallback_links = await get_media_files(media_for_download, url)
+            if telegram_video:
+                files.append(telegram_video)
+
+            content = "\n".join(fallback_links) if fallback_links else None
+
+            if files or content:
+                await message.reply(
+                    content=content,
+                    files=files,
+                    mention_author=False
+                )
+
+        continue
+
+# --- On Ready ---
 @bot.event 
 async def on_ready():
     if not hasattr(bot, "http_session"): 
         bot.http_session = aiohttp.ClientSession()
+
+    await telegram_client.connect()
+    print("Telethon Connected")
     
     bot.add_view(TicketPanelView())
     bot.add_view(TicketView())
