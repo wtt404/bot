@@ -109,7 +109,6 @@ async def get_text(url):
         ) as response:
             data = await response.json()
             
-        print(data)
 
         return {
             "text": data.get("tweet", {}).get("text", ""),
@@ -164,11 +163,6 @@ async def get_media_files(media, original_url):
 
             filename = f"media_{i}.{extension}"
 
-            print("ITEM:", item)
-            print("FILENAME:", filename)
-            print("CONTENT TYPE:", response.headers.get("Content-Type"))
-            print("--------------------") 
-
             files.append(
                 discord.File(
                     io.BytesIO(data),
@@ -192,9 +186,6 @@ async def get_telegram_data(url):
         ) as response:
 
             page = await response.text()
-            print("VIDEO TAG:", "<video" in page)
-            print("MP4:", ".mp4" in page)
-            print("TG VIDEO PLAYER:", "tgme_widget_message_video" in page)
 
             start = page.find("tgme_widget_message_video")
             
@@ -263,7 +254,6 @@ async def get_telegram_data(url):
             text = re.sub(r"\n{3,}", "\n\n", text)
             text = text.strip()
 
-        print("RAW MEDIA:", media)
         filtered_media = []
 
         for item in media:
@@ -281,8 +271,6 @@ async def get_telegram_data(url):
         if not has_video:
             filtered_media = media 
         
-
-        print("FINAL MEDIA:", filtered_media)
         
         return {
             "text": text,
@@ -1009,7 +997,7 @@ async def on_message(message):
                     for item in media
                     if item["type"] != "video"
                 ]
-            print("MEDIA BEFORE get_media_files:", media) 
+    
             files, fallback_links = await get_media_files(media_for_download, url)
             if telegram_video:
                 files.append(telegram_video)
@@ -1068,7 +1056,7 @@ async def on_message(message):
                     for item in media
                     if item["type"] != "video"
                 ]
-            print("MEDIA BEFORE get_media_files:", media)   
+   
             files, fallback_links = await get_media_files(media_for_download, url)
             if telegram_video:
                 files.append(telegram_video)
