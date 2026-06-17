@@ -1,6 +1,7 @@
 import json
 import html
 import time
+import io
 import aiosqlite
 import discord
 from discord.ext import tasks
