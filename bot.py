@@ -141,7 +141,7 @@ async def get_media_files(media, original_url):
                 print("SIZE:", response.content_length)
                 print("TYPE:", item.get("type"))
 
-                if size and size > 10 * 1024 * 1024:
+                if size and size > 50 * 1024 * 1024:
                     
                     if item.get("type") == "video":
 
