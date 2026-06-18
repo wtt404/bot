@@ -49,7 +49,7 @@ print("API_HASH:", os.getenv("API_HASH"))
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 telegram_client = TelegramClient(
-    "telegram_session",
+    "telegram_session_bot1",
     API_ID,
     API_HASH
 )
