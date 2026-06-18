@@ -992,11 +992,7 @@ async def on_message(message):
             media_for_download = media
 
             if telegram_video:
-                media_for_download = [
-                    item
-                    for item in media
-                    if item["type"] != "video"
-                ]
+                media_for_download = []
     
             files, fallback_links = await get_media_files(media_for_download, url)
             if telegram_video:
@@ -1051,11 +1047,7 @@ async def on_message(message):
         elif media:
             media_for_download = media 
             if telegram_video:
-                media_for_download = [
-                    item
-                    for item in media
-                    if item["type"] != "video"
-                ]
+                media_for_download = []
    
             files, fallback_links = await get_media_files(media_for_download, url)
             if telegram_video:
