@@ -141,7 +141,7 @@ async def get_media_files(media, original_url):
                 print("SIZE:", response.content_length)
                 print("TYPE:", item.get("type"))
 
-                if size and size > 50 * 1024 * 1024:
+                if size and size > 10 * 1024 * 1024:
                     
                     if item.get("type") == "video":
 
@@ -159,9 +159,28 @@ async def get_media_files(media, original_url):
 
                 data = await response.read()
 
-            extension = item["url"].split("?")[0].split(".")[-1]
+            content_type = response.headers.get(
+                "Content-Type",
+                ""
+            ) 
+
+            if "jpeg" in content_type:
+                extension = "jpg"
+            elif "png" in content_type:
+                extension = "png"
+            elif "gif" in content_type:
+                extension = "gif"
+            elif "mp4" in content_type:
+                extension = "mp4"
+            else:
+                extension = "bin"
 
             filename = f"media_{i}.{extension}"
+
+            print("ITEM:", item)
+            print("FILENAME:", filename)
+            print("CONTENT TYPE:", response.headers.get("Content-Type"))
+            print("--------------------") 
 
             files.append(
                 discord.File(
@@ -186,6 +205,9 @@ async def get_telegram_data(url):
         ) as response:
 
             page = await response.text()
+            print("VIDEO TAG:", "<video" in page)
+            print("MP4:", ".mp4" in page)
+            print("TG VIDEO PLAYER:", "tgme_widget_message_video" in page)
 
             start = page.find("tgme_widget_message_video")
             
@@ -254,6 +276,7 @@ async def get_telegram_data(url):
             text = re.sub(r"\n{3,}", "\n\n", text)
             text = text.strip()
 
+        print("RAW MEDIA:", media)
         filtered_media = []
 
         for item in media:
@@ -268,29 +291,37 @@ async def get_telegram_data(url):
             for item in filtered_media
         )
 
-        if not has_video:
-            filtered_media = media 
+        if has_video:
+            filtered_media = [
+                item
+                for item in filtered_media
+                if item["type"] == "video"
+            ]
+        else: filtered_media = media
+            
         
+
+        print("FINAL MEDIA:", filtered_media)
         
         return {
             "text": text,
             "media": filtered_media
         }
-
+        
     except Exception as e:
         print("Error getting Telegram text:", e)
         return {
             "text": "",
             "media": []
-                }
+        }
 
 # --- Telegram vids handle ---  
-async def get_telegram_video_file(url, discord_limit):
+async def get_telegram_video_files(url, discord_limit):
     try:
         match = re.search(r"t\.me/([^/]+)/(\d+)", url)
 
         if not match:
-            return None
+            return []
 
         channel = match.group(1)
         message_id = int(match.group(2))
@@ -301,41 +332,100 @@ async def get_telegram_video_file(url, discord_limit):
             entity,
             ids=message_id
         )
+        
+        print("MESSAGE ID:", message.id)
+        print("GROUPED ID:", message.grouped_id)
+        
+        album_messages = [message]
 
-        if not message or not message.media:
-            return None
+        if message.grouped_id:
+            album_messages = []
 
-        media = message.media
-
-        if not hasattr(media, "alt_documents"):
-            return None
-
-        best_doc = None
-
-        for doc in media.alt_documents:
-            if (
-                doc.mime_type == "video/mp4"
-                and doc.size <= discord_limit
+            async for msg in telegram_client.iter_messages(
+                entity,
+                limit=50
             ):
-                if best_doc is None or doc.size > best_doc.size:
-                    best_doc = doc
+                if msg.grouped_id == message.grouped_id:
+                    album_messages.append(msg)
 
-        if not best_doc:
-            return None
+            print("ALBUM SIZE:", len(album_messages))
+            
+        files = []
 
-        path = await telegram_client.download_media(
-            best_doc,
-            file=f"downloads/tg_{message_id}.mp4"
-        )
+        for msg in album_messages:
+            print("PROCESSING:", msg.id)
+            
+            if not msg.media:
+                continue 
 
-        return discord.File(
-            path,
-            filename=f"telegram_video_{message_id}.mp4"
-        )
+            if msg.photo:
+
+                path = await telegram_client.download_media(
+                    msg,
+                    file=f"downloads/tg_{msg.id}.jpg"
+                )
+                
+                files.append(
+                    discord.File(
+                        path,
+                        filename=f"telegram_photo_{msg.id}.jpg"
+                    )
+                )
+                continue
+                
+            if not hasattr(msg.media, "document"):
+                continue
+                
+            document = msg.media.document
+
+            media = msg.media
+
+            if not hasattr(media, "alt_documents"):
+                continue
+
+            best_doc = None
+
+            for doc in media.alt_documents:
+                if (
+                    doc.mime_type == "video/mp4"
+                    and doc.size <= discord_limit
+                ):
+                    if best_doc is None or doc.size > best_doc.size:
+                        best_doc = doc
+
+            if not best_doc:
+                continue
+
+            path = await telegram_client.download_media(
+                best_doc,
+                file=f"downloads/tg_{msg.id}.mp4"
+            )
+
+            print(
+                "BEST DOC:",
+                msg.id,
+                best_doc.id,
+                best_doc.size
+            )
+
+            print(
+                "ADDING FILE:",
+                msg.id,
+                path
+            )
+
+            files.append(
+                discord.File(
+                    path,
+                    filename=f"telegram_video_{msg.id}.mp4"
+                )
+            )
+
+        return files 
 
     except Exception as e:
         print("Telegram video error:", e)
-        return None
+        return []
 
 # --- Translate ---
 def translate(text):
@@ -933,7 +1023,7 @@ async def on_message(message):
     for url in urls:
         text = ""
         media = []
-        telegram_video = None
+        telegram_videos = None
 
         is_fixupx = any(d in url for d in [
             "fixupx.com",
@@ -963,11 +1053,13 @@ async def on_message(message):
             text = telegram_data["text"]
             media = telegram_data["media"]
 
-            telegram_video = await get_telegram_video_file(
+            telegram_videos = await get_telegram_video_files(
                 url,
                 message.guild.filesize_limit
             )
-            
+
+            print("TELEGRAM VIDEOS:", telegram_videos)
+        
         clean = re.sub(r"[^\w\s]", "", text)
         
         try:
@@ -991,12 +1083,13 @@ async def on_message(message):
             
             media_for_download = media
 
-            if telegram_video:
+            if telegram_videos:
                 media_for_download = []
-    
+                
+            print("MEDIA BEFORE get_media_files:", media) 
             files, fallback_links = await get_media_files(media_for_download, url)
-            if telegram_video:
-                files.append(telegram_video)
+            if telegram_videos:
+                files.extend(telegram_videos)
 
             for i, chunk in enumerate(chunks):
 
@@ -1046,12 +1139,13 @@ async def on_message(message):
                     
         elif media:
             media_for_download = media 
-            if telegram_video:
+            if telegram_videos:
                 media_for_download = []
-   
+                
+            print("MEDIA BEFORE get_media_files:", media)   
             files, fallback_links = await get_media_files(media_for_download, url)
-            if telegram_video:
-                files.append(telegram_video)
+            if telegram_videos:
+                files.extend(telegram_videos)
 
             content = "\n".join(fallback_links) if fallback_links else None
 
