@@ -16,6 +16,7 @@ from deep_translator import GoogleTranslator
 from langdetect import detect
 import os
 import asyncio
+import shutil
 
 LANG_NAMES = {
     "ar": "Arabic",
@@ -43,6 +44,11 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+
+if os.path.exists("downloads"):
+    shutil.rmtree("downloads")
+
+os.makedirs("downloads", exist_ok=True)
 
 print("API_ID:", os.getenv("API_ID"))
 print("API_HASH:", os.getenv("API_HASH"))
@@ -1111,7 +1117,7 @@ async def on_message(message):
                             embed=embed,
                             files=files,
                             mention_author=False
-                        )
+                        )           
 
                     except discord.HTTPException:
                         bot_reply = await message.reply(
@@ -1119,12 +1125,15 @@ async def on_message(message):
                             mention_author=False
                         )
                         
-                    for file in files:
-                        try:
-                            if hasattr(file.fp, "name"):
-                                os.remove(file.fp.name)
-                        except:
-                            pass
+                    finally:
+                        for file in files:
+                            try:
+                                path = file.fp.name
+                                file.close()
+                                os.remove(path)
+                                print("DELETED:", path)
+                            except Exception as e:
+                                print("DELETE FAILED:", e)
                     
                     for link in fallback_links:
                         await bot_reply.reply(
