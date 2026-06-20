@@ -1131,11 +1131,22 @@ async def on_message(message):
                     finally:
                         for file in files:
                             try:
-                                path = file.fp.name
-                                file.close()
-                                os.remove(path)
-                                
-                                print("DELETED:", path)
+                                fp = file.fp
+
+                                if hasattr(fp, "name") and isinstance(fp.name, str):
+                                    path = file.fp.name
+                                    file.close()
+
+                                    if os.path.exists(path):
+                                        os.remove(path)
+                                        print("DELETED FILE:", path)
+                                    else:
+                                        print("NOT FOUND:", path)
+
+                                else:
+                                    file.close()
+                                    print("SKIPPED FILE")
+                                    
                             except Exception as e:
                                 print("DELETE FAILED:", e)
                     
