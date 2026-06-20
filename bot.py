@@ -49,6 +49,7 @@ if os.path.exists("downloads"):
     shutil.rmtree("downloads")
 
 os.makedirs("downloads", exist_ok=True)
+print("DOWNLOADS CLEAN")
 
 print("API_ID:", os.getenv("API_ID"))
 print("API_HASH:", os.getenv("API_HASH"))
@@ -187,6 +188,7 @@ async def get_media_files(media, original_url):
             print("FILENAME:", filename)
             print("CONTENT TYPE:", response.headers.get("Content-Type"))
             print("--------------------") 
+            print("CREATED:", filename)
 
             files.append(
                 discord.File(
@@ -370,6 +372,7 @@ async def get_telegram_video_files(url, discord_limit):
                     msg,
                     file=f"downloads/tg_{msg.id}.jpg"
                 )
+                print("CREATED:", path)
                 
                 files.append(
                     discord.File(
@@ -1131,6 +1134,7 @@ async def on_message(message):
                                 path = file.fp.name
                                 file.close()
                                 os.remove(path)
+                                
                                 print("DELETED:", path)
                             except Exception as e:
                                 print("DELETE FAILED:", e)
