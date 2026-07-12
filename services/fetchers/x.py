@@ -112,10 +112,19 @@ class XFetcher(Fetcher):
                 if "?format=webp" in media_url:
                     continue
 
-                if media_url in seen:
+                # X serves the same photo at several resolutions (grid
+                # thumbnail, hover/lazy-load preview, etc.), sometimes as a
+                # "?name=" query param and sometimes as a ":size" colon
+                # suffix (e.g. ABC123.jpg:large vs ABC123.jpg:small) - same
+                # underlying image either way. Dedupe on the stable media ID
+                # so those collapse into one entry instead of duplicating.
+                media_id = media_url.split("?")[0].rsplit("/", 1)[-1]
+                media_id = re.sub(r"\.(jpg|jpeg|png|webp|gif)(:[a-zA-Z]+)?$", "", media_id, flags=re.IGNORECASE)
+
+                if media_id in seen:
                     continue
        
-                seen.add(media_url)
+                seen.add(media_id)
 
                 media.append(
                     Media(
@@ -127,10 +136,12 @@ class XFetcher(Fetcher):
             for video_url in video_urls:
                 video_url = video_url.replace("&amp;", "&")
 
-                if video_url in seen:
+                video_id = video_url.split("?")[0].rsplit("/", 1)[-1]
+
+                if video_id in seen:
                     continue 
 
-                seen.add(video_url)
+                seen.add(video_id)
 
                 media.append(
                     Media(
