@@ -1,0 +1,8 @@
+discord.py
+openai
+python-dotenv
+lingua-language-detector
+playwright
+deep-translator
+aiohttp
+beautifulsoup4
