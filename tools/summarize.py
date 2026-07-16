@@ -1,4 +1,4 @@
-from ai.client import chat_completion
+from ai.client import chat_completion, looks_like_refusal
 from tools.base import Tool
 
 SYSTEM_PROMPT = """
@@ -33,7 +33,15 @@ class SummarizeTool(Tool):
                     {"role": "user", "content": text},
                 ],
             )
-            return response.choices[0].message.content
+            choice = response.choices[0]
+            result = choice.message.content
+            finish_reason = getattr(choice, "finish_reason", None)
+
+            if finish_reason == "content_filter" or (result and looks_like_refusal(text, result)):
+                print(f"Summarize looked like a refusal: {(result or '')[:200]}", flush=True)
+                return "Couldn't summarize that (the model declined to process it)."
+
+            return result
         except Exception as e:
             print("Summarize failed:", e, flush=True)
             return None
