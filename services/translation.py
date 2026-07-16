@@ -1,6 +1,6 @@
 from deep_translator import GoogleTranslator
 
-from ai.client import chat_completion
+from ai.client import chat_completion, looks_like_refusal
 from config import settings
 
 SYSTEM_PROMPT = f"""
@@ -26,16 +26,22 @@ async def translate(text: str) -> str:
                 {"role": "user", "content": text},
             ],
         )
-        result = response.choices[0].message.content
+        choice = response.choices[0]
+        result = choice.message.content
+        finish_reason = getattr(choice, "finish_reason", None)
 
-        if result:
+        if finish_reason == "content_filter":
+            print(f"AI translation blocked by content filter, falling back", flush=True)
+        elif result and not looks_like_refusal(text, result):
             return result.strip()
+        elif result:
+            print(f"AI translation looked like a refusal, falling back: {result[:200]}", flush=True)
 
     except Exception as e:
         print("AI translation failed:", e, flush=True)
 
-    # Fallback: GoogleTranslator, free and keyless, used only if every AI
-    # model in the fallback chain failed.
+    # Fallback: GoogleTranslator, free and keyless, used whenever the AI
+    # path failed or refused.
     try:
         translated = GoogleTranslator(
             source="auto",
