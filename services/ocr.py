@@ -1,4 +1,5 @@
 import aiohttp
+import time
 
 from config import OCR_SPACE_API_KEY
 
@@ -15,11 +16,13 @@ async def ocr_image(image_bytes: bytes, filename: str = "image.png") -> str:
 
     data = aiohttp.FormData()
     data.add_field("apikey", OCR_SPACE_API_KEY)
-    # language=auto + OCREngine=2 together enable OCR.space's language
-    # auto-detection across 200+ languages, since we don't know ahead of
-    # time what language text in a given post's image will be in.
+    # Engine 3 supports 200+ languages (incl. Hebrew, Persian, and other
+    # RTL scripts) via auto-detection - Engine 2 only ever added a handful
+    # of extra languages (Korean/Japanese/Russian/Ukrainian/Thai/Vietnamese)
+    # and doesn't reliably handle Hebrew/Persian. Engine 3 has its own
+    # separate free quota (2,500/mo) so this doesn't eat into Engine 1/2's.
     data.add_field("language", "auto")
-    data.add_field("OCREngine", "2")
+    data.add_field("OCREngine", "3")
     data.add_field("isOverlayRequired", "false")
     data.add_field(
         "file",
@@ -29,6 +32,7 @@ async def ocr_image(image_bytes: bytes, filename: str = "image.png") -> str:
     )
 
     try:
+        ocr_start = time.monotonic()
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 OCR_URL,
@@ -36,6 +40,7 @@ async def ocr_image(image_bytes: bytes, filename: str = "image.png") -> str:
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 result = await resp.json()
+        print(f"[TIMING] OCR.space request: {time.monotonic() - ocr_start:.2f}s", flush=True)
 
     except Exception as e:
         print("OCR.space request failed:", e, flush=True)
