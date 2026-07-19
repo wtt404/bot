@@ -1,5 +1,4 @@
 discord.py
-openai
 python-dotenv
 lingua-language-detector
 playwright
