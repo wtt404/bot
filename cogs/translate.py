@@ -4,8 +4,6 @@ from discord import app_commands
 
 
 class InteractionReplyAdapter:
-    """Lets services.dispatcher/pipeline (built around discord.Message.reply)
-    be reused unchanged from a slash command's Interaction."""
 
     def __init__(self, interaction: discord.Interaction):
         self._interaction = interaction
