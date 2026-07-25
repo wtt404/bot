@@ -78,7 +78,7 @@ class XFetcher(Fetcher):
             try:
                 scoped_html = await article.inner_html()
             except Exception:
-                scoped_html = await page.content()  # best-effort fallback
+                scoped_html = await page.content()
 
             video_urls = set(re.findall(
                 r'https://video\.twimg\.com[^"\']+',
