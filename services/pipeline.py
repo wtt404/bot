@@ -36,8 +36,6 @@ async def translate_post(message, post):
         )
 
     if embed is None and not files:
-        # Nothing worth sending (English post, no translation needed, and
-        # no media came through) - don't attempt an empty Discord message.
         print("Nothing to send.", flush=True)
         return
 
