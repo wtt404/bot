@@ -51,10 +51,7 @@ class TelegramFetcher(Fetcher):
                 break
 
         if message_el is None:
-            message_el = soup  # fallback: best effort if markup changes
-
-        # Strip any quoted/replied-to message block first, so its text and
-        # media can never be mistaken for the actual post's own content.
+            message_el = soup
         for reply_block in message_el.select(".tgme_widget_message_reply"):
             reply_block.decompose()
 
@@ -69,9 +66,6 @@ class TelegramFetcher(Fetcher):
         seen = set()
         media = []
 
-        # Photos are rendered as an element with a background-image inline
-        # style. Match on "class contains" rather than an exact class
-        # attribute, since Telegram often appends extra classes.
         for el in message_el.select('[class*="tgme_widget_message_photo_wrap"]'):
             style = el.get("style", "")
             m = BG_IMAGE_PATTERN.search(style)
@@ -87,10 +81,6 @@ class TelegramFetcher(Fetcher):
             seen.add(photo_url)
             media.append(Media(url=photo_url, type="image"))
 
-        # Videos: only recoverable when Telegram's lightweight preview embeds
-        # a direct <video src>. Larger/longer videos are intentionally not
-        # embedded by Telegram here and can't be recovered without the
-        # Telegram API/app - those will just come through with no video media.
         for el in message_el.select("video"):
             src = el.get("src")
 
