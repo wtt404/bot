@@ -205,8 +205,6 @@ class CloseConfirmView(discord.ui.View):
 class Tickets(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Persistent views need to be re-registered every startup so the
-        # buttons keep working after a restart/redeploy.
         bot.add_view(TicketPanelView())
         bot.add_view(TicketView())
         print("TICKETS COG INITIALIZED", flush=True)
