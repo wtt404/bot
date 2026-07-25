@@ -16,7 +16,7 @@ async def download(media_urls):
             url = item.url
 
             if item.type == "video" and video_sent:
-                continue  # one real video per post is enough; skip duplicate renditions
+                continue
 
             if item.type == "video" and ".m3u8" in url:
                 video_path = await get_best_mp4(url)
@@ -53,9 +53,6 @@ async def download(media_urls):
                         media_failed_size = True
                         continue
 
-                    # Some captured "video" URLs turn out to be tiny
-                    # tracking/license-check responses, not real video
-                    # content. Reject anything that isn't plausibly a video.
                     if item.type == "video":
                         MIN_VIDEO_BYTES = 20 * 1024
 
