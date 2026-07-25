@@ -34,9 +34,6 @@ class XFetcher(Fetcher):
 
             print("Title:", await page.title(), flush=True)
 
-            # Multi-photo galleries render a beat after domcontentloaded fires;
-            # wait for at least one media element, then give the rest of the
-            # gallery a moment to finish attaching before we scrape the HTML.
             try:
                 await page.wait_for_selector(
                     '[data-testid="tweetPhoto"], video',
@@ -44,12 +41,7 @@ class XFetcher(Fetcher):
                 )
                 await page.wait_for_timeout(750)
             except Exception:
-                pass  # text-only tweet, nothing to wait for
-
-            # The page shows the whole thread (target tweet + replies +
-            # recommended tweets), not just the linked tweet. Scope
-            # everything to the target tweet's own container so media from
-            # replies/recommendations below it can't leak into the result.
+                pass 
             article = page.locator('article[data-testid="tweet"]').first
 
             has_target_video = False
@@ -65,9 +57,6 @@ class XFetcher(Fetcher):
                 except Exception:
                     pass
             else:
-                # No video in the target tweet itself - discard anything the
-                # global network listener picked up, since it can only have
-                # come from something else on the page.
                 captured_video_urls.clear()
 
             scripts = await page.locator('script[type="application/ld+json"]').all_inner_texts()
@@ -112,12 +101,6 @@ class XFetcher(Fetcher):
                 if "?format=webp" in media_url:
                     continue
 
-                # X serves the same photo at several resolutions (grid
-                # thumbnail, hover/lazy-load preview, etc.), sometimes as a
-                # "?name=" query param and sometimes as a ":size" colon
-                # suffix (e.g. ABC123.jpg:large vs ABC123.jpg:small) - same
-                # underlying image either way. Dedupe on the stable media ID
-                # so those collapse into one entry instead of duplicating.
                 media_id = media_url.split("?")[0].rsplit("/", 1)[-1]
                 media_id = re.sub(r"\.(jpg|jpeg|png|webp|gif)(:[a-zA-Z]+)?$", "", media_id, flags=re.IGNORECASE)
 
