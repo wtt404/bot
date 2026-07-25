@@ -34,12 +34,10 @@ class Translate(commands.Cog):
         detected = detect(text)
 
         if detected:
-            # An X/Telegram link was pasted: reuse the normal fetch + media pipeline.
             adapter = InteractionReplyAdapter(interaction)
             await dispatch(adapter, detected)
             return
 
-        # Plain text: translate it directly.
         from services.language import detect_language
         from services.translation import translate as translate_text
         from services.embeds import translation_embed
