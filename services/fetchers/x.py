@@ -1,5 +1,5 @@
 from models.post import Post, Media
-from services.browser import new_page
+from services.browser import new_page, page_semaphore
 from services.fetchers.base import Fetcher
 import json
 import re
@@ -10,190 +10,171 @@ class XFetcher(Fetcher):
     async def fetch(self, url: str) -> Post:
         fetch_start = time.monotonic()
 
-        page = await new_page()
-        captured_video_urls = set()
+        async with page_semaphore():
+            queue_wait = time.monotonic() - fetch_start
+            if queue_wait > 0.5:
+                print(f"[TIMING] XFetcher: waited {queue_wait:.2f}s for a free browser slot", flush=True)
 
-        def _capture_video(response):
-            resp_url = response.url
-            if "video.twimg.com" in resp_url and (".m3u8" in resp_url or ".mp4" in resp_url):
-                captured_video_urls.add(resp_url)
+            page = await new_page()
+            captured_video_urls = set()
 
-        page.on("response", _capture_video)
+            def _capture_video(response):
+                resp_url = response.url
+                if "video.twimg.com" in resp_url and (".m3u8" in resp_url or ".mp4" in resp_url):
+                    captured_video_urls.add(resp_url)
 
-        try:
-            print("FETCH START", flush=True)
+            page.on("response", _capture_video)
 
-            response = await page.goto(
-                url,
-                wait_until="domcontentloaded",
-                timeout=30000
-            )
-            print("Navigation finished", flush=True)
-
-            print(f"Status: {response.status if response else 'None'}", flush=True)
-
-            print("Current URL:", page.url, flush=True)
-
-            print("Title:", await page.title(), flush=True)
-
-            # Multi-photo galleries render a beat after domcontentloaded fires;
-            # wait for at least one media element, then give the rest of the
-            # gallery a moment to finish attaching before we scrape the HTML.
             try:
-                await page.wait_for_selector(
-                    '[data-testid="tweetPhoto"], video',
-                    timeout=8000
+                print("FETCH START", flush=True)
+
+                response = await page.goto(
+                    url,
+                    wait_until="domcontentloaded",
+                    timeout=30000
                 )
-                await page.wait_for_timeout(750)
-            except Exception:
-                pass  # text-only tweet, nothing to wait for
+                print("Navigation finished", flush=True)
 
-            # The page shows the whole thread (target tweet + replies +
-            # recommended tweets), not just the linked tweet. Scope
-            # everything to the target tweet's own container so media from
-            # replies/recommendations below it can't leak into the result.
-            article = page.locator('article[data-testid="tweet"]').first
+                print(f"Status: {response.status if response else 'None'}", flush=True)
 
-            has_target_video = False
-            try:
-                has_target_video = await article.locator("video").count() > 0
-            except Exception:
-                pass
+                print("Current URL:", page.url, flush=True)
 
-            if has_target_video:
+                print("Title:", await page.title(), flush=True)
+
                 try:
-                    await article.locator("video").first.click(timeout=3000)
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_selector(
+                        '[data-testid="tweetPhoto"], video',
+                        timeout=8000
+                    )
+                    await page.wait_for_timeout(750)
                 except Exception:
                     pass
-            else:
-                # No video in the target tweet itself - discard anything the
-                # global network listener picked up, since it can only have
-                # come from something else on the page.
-                captured_video_urls.clear()
 
-            text = None
-            method_used = None
+                article = page.locator('article[data-testid="tweet"]').first
 
-            # Primary: read the tweet text directly from the rendered DOM,
-            # the same element real users read. This doesn't depend on
-            # X's SEO/JSON-LD metadata, which has been seen missing on
-            # some tweets even when the page itself loads fine.
-            try:
-                tweet_text_el = article.locator('[data-testid="tweetText"]').first
-                if await tweet_text_el.count() > 0:
-                    dom_text = await tweet_text_el.inner_text()
-                    if dom_text and dom_text.strip():
-                        text = dom_text.strip()
-                        method_used = "dom"
-            except Exception as e:
-                print(f"DOM text extraction failed: {e}", flush=True)
-
-            # Fallback 1: JSON-LD SocialMediaPosting block, when present.
-            if text is None:
+                has_target_video = False
                 try:
-                    scripts = await page.locator('script[type="application/ld+json"]').all_inner_texts()
+                    has_target_video = await article.locator("video").count() > 0
+                except Exception:
+                    pass
 
-                    for script in scripts:
-                        obj = json.loads(script)
+                if has_target_video:
+                    try:
+                        await article.locator("video").first.click(timeout=3000)
+                        await page.wait_for_timeout(1500)
+                    except Exception:
+                        pass
+                else:
+                    captured_video_urls.clear()
 
-                        if obj.get("@type") == "SocialMediaPosting":
-                            text = obj.get("articleBody")
-                            method_used = "json-ld"
-                            break
+                text = None
+                method_used = None
+
+                try:
+                    tweet_text_el = article.locator('[data-testid="tweetText"]').first
+                    if await tweet_text_el.count() > 0:
+                        dom_text = await tweet_text_el.inner_text()
+                        if dom_text and dom_text.strip():
+                            text = dom_text.strip()
+                            method_used = "dom"
                 except Exception as e:
-                    print(f"JSON-LD text extraction failed: {e}", flush=True)
+                    print(f"DOM text extraction failed: {e}", flush=True)
 
-            # Fallback 2: X's <title> tag reliably contains the tweet text
-            # in the format `<author> on X: "<tweet text>" / X`, even on
-            # pages missing the JSON-LD block entirely.
-            if text is None:
-                title = await page.title()
-                title_match = re.search(r'on X: "(.+)" / X$', title)
-                if title_match:
-                    text = title_match.group(1)
-                    method_used = "title-tag"
+                if text is None:
+                    try:
+                        scripts = await page.locator('script[type="application/ld+json"]').all_inner_texts()
 
-            if text is None:
-                raise RuntimeError("Could not extract tweet text via any method")
+                        for script in scripts:
+                            obj = json.loads(script)
 
-            print(f"Text extraction method: {method_used}", flush=True)
+                            if obj.get("@type") == "SocialMediaPosting":
+                                text = obj.get("articleBody")
+                                method_used = "json-ld"
+                                break
+                    except Exception as e:
+                        print(f"JSON-LD text extraction failed: {e}", flush=True)
 
-            try:
-                scoped_html = await article.inner_html()
-            except Exception:
-                scoped_html = await page.content()  # best-effort fallback
+                if text is None:
+                    title = await page.title()
+                    title_match = re.search(r'on X: "(.+)" / X$', title)
+                    if title_match:
+                        text = title_match.group(1)
+                        method_used = "title-tag"
 
-            video_urls = set(re.findall(
-                r'https://video\.twimg\.com[^"\']+',
-                scoped_html
-            ))
-            video_urls |= captured_video_urls if has_target_video else set()
+                if text is None:
+                    raise RuntimeError("Could not extract tweet text via any method")
 
-            print("Video playlists:", video_urls, flush=True)
-  
-            seen = set()
-            media = []
+                print(f"Text extraction method: {method_used}", flush=True)
 
-            image_matches = re.findall(r'https://pbs\.twimg\.com/media/[^"\']+', scoped_html)
-            print(f"Found {len(image_matches)} raw image URL matches in scoped article", flush=True)
-            print("Image matches:", image_matches, flush=True)
+                try:
+                    scoped_html = await article.inner_html()
+                except Exception:
+                    scoped_html = await page.content()
 
-            for media_url in image_matches:
-                media_url = media_url.replace("&amp;", "&")
+                video_urls = set(re.findall(
+                    r'https://video\.twimg\.com[^"\']+',
+                    scoped_html
+                ))
+                video_urls |= captured_video_urls if has_target_video else set()
 
-                if "?format=webp" in media_url:
-                    continue
+                print("Video playlists:", video_urls, flush=True)
 
-                # X serves the same photo at several resolutions (grid
-                # thumbnail, hover/lazy-load preview, etc.), sometimes as a
-                # "?name=" query param and sometimes as a ":size" colon
-                # suffix (e.g. ABC123.jpg:large vs ABC123.jpg:small) - same
-                # underlying image either way. Dedupe on the stable media ID
-                # so those collapse into one entry instead of duplicating.
-                media_id = media_url.split("?")[0].rsplit("/", 1)[-1]
-                media_id = re.sub(r"\.(jpg|jpeg|png|webp|gif)(:[a-zA-Z]+)?$", "", media_id, flags=re.IGNORECASE)
+                seen = set()
+                media = []
 
-                if media_id in seen:
-                    continue
-       
-                seen.add(media_id)
+                image_matches = re.findall(r'https://pbs\.twimg\.com/media/[^"\']+', scoped_html)
+                print(f"Found {len(image_matches)} raw image URL matches in scoped article", flush=True)
+                print("Image matches:", image_matches, flush=True)
 
-                media.append(
-                    Media(
-                        url=media_url,
-                        type="image"
+                for media_url in image_matches:
+                    media_url = media_url.replace("&amp;", "&")
+
+                    if "?format=webp" in media_url:
+                        continue
+
+                    media_id = media_url.split("?")[0].rsplit("/", 1)[-1]
+                    media_id = re.sub(r"\.(jpg|jpeg|png|webp|gif)(:[a-zA-Z]+)?$", "", media_id, flags=re.IGNORECASE)
+
+                    if media_id in seen:
+                        continue
+
+                    seen.add(media_id)
+
+                    media.append(
+                        Media(
+                            url=media_url,
+                            type="image"
+                        )
                     )
+
+                for video_url in video_urls:
+                    video_url = video_url.replace("&amp;", "&")
+
+                    video_id = video_url.split("?")[0].rsplit("/", 1)[-1]
+
+                    if video_id in seen:
+                        continue
+
+                    seen.add(video_id)
+
+                    media.append(
+                        Media(
+                            url=video_url,
+                            type="video"
+                        )
+                    )
+
+                elapsed = time.monotonic() - fetch_start
+                print(f"[TIMING] XFetcher.fetch succeeded in {elapsed:.2f}s", flush=True)
+
+                return Post(
+                    platform="x",
+                    text=text,
+                    media=media
                 )
 
-            for video_url in video_urls:
-                video_url = video_url.replace("&amp;", "&")
-
-                video_id = video_url.split("?")[0].rsplit("/", 1)[-1]
-
-                if video_id in seen:
-                    continue 
-
-                seen.add(video_id)
-
-                media.append(
-                    Media(
-                        url=video_url,
-                        type="video"
-                    )
-                )
-
-            elapsed = time.monotonic() - fetch_start
-            print(f"[TIMING] XFetcher.fetch succeeded in {elapsed:.2f}s", flush=True)
-
-            return Post(
-                platform="x",
-                text=text,
-                media=media
-            )
-
-        finally:
-            elapsed = time.monotonic() - fetch_start
-            print(f"[TIMING] XFetcher.fetch total (incl. cleanup): {elapsed:.2f}s", flush=True)
-            page.remove_listener("response", _capture_video)
-            await page.close()
+            finally:
+                elapsed = time.monotonic() - fetch_start
+                print(f"[TIMING] XFetcher.fetch total (incl. cleanup): {elapsed:.2f}s", flush=True)
+                page.remove_listener("response", _capture_video)
+                await page.close()
