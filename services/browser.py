@@ -1,8 +1,13 @@
+import asyncio
+
 from playwright.async_api import async_playwright
 
 _playwright = None
 _browser = None
 _context = None
+
+MAX_CONCURRENT_PAGES = 4
+_page_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PAGES)
 
 
 async def start_browser():
@@ -34,3 +39,7 @@ async def stop_browser():
 
 async def new_page():
     return await _context.new_page()
+
+
+def page_semaphore():
+    return _page_semaphore
