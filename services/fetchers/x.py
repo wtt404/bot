@@ -3,10 +3,12 @@ from services.browser import new_page
 from services.fetchers.base import Fetcher
 import json
 import re
+import time
 
 
 class XFetcher(Fetcher):
     async def fetch(self, url: str) -> Post:
+        fetch_start = time.monotonic()
 
         page = await new_page()
         captured_video_urls = set()
@@ -34,6 +36,9 @@ class XFetcher(Fetcher):
 
             print("Title:", await page.title(), flush=True)
 
+            # Multi-photo galleries render a beat after domcontentloaded fires;
+            # wait for at least one media element, then give the rest of the
+            # gallery a moment to finish attaching before we scrape the HTML.
             try:
                 await page.wait_for_selector(
                     '[data-testid="tweetPhoto"], video',
@@ -41,7 +46,12 @@ class XFetcher(Fetcher):
                 )
                 await page.wait_for_timeout(750)
             except Exception:
-                pass 
+                pass  # text-only tweet, nothing to wait for
+
+            # The page shows the whole thread (target tweet + replies +
+            # recommended tweets), not just the linked tweet. Scope
+            # everything to the target tweet's own container so media from
+            # replies/recommendations below it can't leak into the result.
             article = page.locator('article[data-testid="tweet"]').first
 
             has_target_video = False
@@ -57,28 +67,62 @@ class XFetcher(Fetcher):
                 except Exception:
                     pass
             else:
+                # No video in the target tweet itself - discard anything the
+                # global network listener picked up, since it can only have
+                # come from something else on the page.
                 captured_video_urls.clear()
 
-            scripts = await page.locator('script[type="application/ld+json"]').all_inner_texts()
+            text = None
+            method_used = None
 
-            data = None
+            # Primary: read the tweet text directly from the rendered DOM,
+            # the same element real users read. This doesn't depend on
+            # X's SEO/JSON-LD metadata, which has been seen missing on
+            # some tweets even when the page itself loads fine.
+            try:
+                tweet_text_el = article.locator('[data-testid="tweetText"]').first
+                if await tweet_text_el.count() > 0:
+                    dom_text = await tweet_text_el.inner_text()
+                    if dom_text and dom_text.strip():
+                        text = dom_text.strip()
+                        method_used = "dom"
+            except Exception as e:
+                print(f"DOM text extraction failed: {e}", flush=True)
 
-            for script in scripts:
-                obj = json.loads(script)
-          
-                if obj.get("@type") == "SocialMediaPosting":
-                    data = obj
-                    break
+            # Fallback 1: JSON-LD SocialMediaPosting block, when present.
+            if text is None:
+                try:
+                    scripts = await page.locator('script[type="application/ld+json"]').all_inner_texts()
 
-            if data is None:
-                raise RuntimeError("SocialMediaPosting not found")
+                    for script in scripts:
+                        obj = json.loads(script)
 
-            text = data["articleBody"]
+                        if obj.get("@type") == "SocialMediaPosting":
+                            text = obj.get("articleBody")
+                            method_used = "json-ld"
+                            break
+                except Exception as e:
+                    print(f"JSON-LD text extraction failed: {e}", flush=True)
+
+            # Fallback 2: X's <title> tag reliably contains the tweet text
+            # in the format `<author> on X: "<tweet text>" / X`, even on
+            # pages missing the JSON-LD block entirely.
+            if text is None:
+                title = await page.title()
+                title_match = re.search(r'on X: "(.+)" / X$', title)
+                if title_match:
+                    text = title_match.group(1)
+                    method_used = "title-tag"
+
+            if text is None:
+                raise RuntimeError("Could not extract tweet text via any method")
+
+            print(f"Text extraction method: {method_used}", flush=True)
 
             try:
                 scoped_html = await article.inner_html()
             except Exception:
-                scoped_html = await page.content()
+                scoped_html = await page.content()  # best-effort fallback
 
             video_urls = set(re.findall(
                 r'https://video\.twimg\.com[^"\']+',
@@ -101,6 +145,12 @@ class XFetcher(Fetcher):
                 if "?format=webp" in media_url:
                     continue
 
+                # X serves the same photo at several resolutions (grid
+                # thumbnail, hover/lazy-load preview, etc.), sometimes as a
+                # "?name=" query param and sometimes as a ":size" colon
+                # suffix (e.g. ABC123.jpg:large vs ABC123.jpg:small) - same
+                # underlying image either way. Dedupe on the stable media ID
+                # so those collapse into one entry instead of duplicating.
                 media_id = media_url.split("?")[0].rsplit("/", 1)[-1]
                 media_id = re.sub(r"\.(jpg|jpeg|png|webp|gif)(:[a-zA-Z]+)?$", "", media_id, flags=re.IGNORECASE)
 
@@ -133,6 +183,9 @@ class XFetcher(Fetcher):
                     )
                 )
 
+            elapsed = time.monotonic() - fetch_start
+            print(f"[TIMING] XFetcher.fetch succeeded in {elapsed:.2f}s", flush=True)
+
             return Post(
                 platform="x",
                 text=text,
@@ -140,5 +193,7 @@ class XFetcher(Fetcher):
             )
 
         finally:
+            elapsed = time.monotonic() - fetch_start
+            print(f"[TIMING] XFetcher.fetch total (incl. cleanup): {elapsed:.2f}s", flush=True)
             page.remove_listener("response", _capture_video)
             await page.close()
