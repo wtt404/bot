@@ -50,10 +50,24 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass  # text-only tweet, nothing to wait for
+                    pass
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
-                article = page.locator('article[data-testid="tweet"]').first
+                status_match = re.search(r"/status/(\d+)", url)
+                status_id = status_match.group(1) if status_match else None
+
+                article = None
+                if status_id:
+                    candidate = page.locator(
+                        f'article[data-testid="tweet"]:has(a[href*="/status/{status_id}"])'
+                    ).first
+                    if await candidate.count() > 0:
+                        article = candidate
+                        print(f"Scoped to article matching status ID {status_id}", flush=True)
+
+                if article is None:
+                    print("Falling back to first article (couldn't match status ID in DOM)", flush=True)
+                    article = page.locator('article[data-testid="tweet"]').first
 
                 has_target_video = False
                 try:
@@ -123,7 +137,7 @@ class XFetcher(Fetcher):
                 try:
                     scoped_html = await article.inner_html()
                 except Exception:
-                    scoped_html = await page.content() 
+                    scoped_html = await page.content()  
 
                 video_urls = set(re.findall(
                     r'https://video\.twimg\.com[^"\']+',
