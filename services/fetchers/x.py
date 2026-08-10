@@ -50,8 +50,7 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass
-
+                    pass  # text-only tweet, nothing to wait for
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
@@ -59,12 +58,17 @@ class XFetcher(Fetcher):
 
                 article = None
                 if status_id:
-                    candidate = page.locator(
-                        f'article[data-testid="tweet"]:has(a[href*="/status/{status_id}"])'
-                    ).first
-                    if await candidate.count() > 0:
-                        article = candidate
-                        print(f"Scoped to article matching status ID {status_id}", flush=True)
+                    try:
+                        status_link = page.locator(f'a[href*="/status/{status_id}"]').first
+                        await status_link.wait_for(state="attached", timeout=5000)
+                        candidate = page.locator(
+                            f'article[data-testid="tweet"]:has(a[href*="/status/{status_id}"])'
+                        ).first
+                        if await candidate.count() > 0:
+                            article = candidate
+                            print(f"Scoped to article matching status ID {status_id}", flush=True)
+                    except Exception as e:
+                        print(f"Status ID match wait failed: {e}", flush=True)
 
                 if article is None:
                     print("Falling back to first article (couldn't match status ID in DOM)", flush=True)
@@ -98,11 +102,12 @@ class XFetcher(Fetcher):
 
                 text = None
                 method_used = None
+                text_extract_start = time.monotonic()
 
                 try:
                     tweet_text_el = article.locator('[data-testid="tweetText"]').first
                     if await tweet_text_el.count() > 0:
-                        dom_text = await tweet_text_el.inner_text()
+                        dom_text = await tweet_text_el.inner_text(timeout=3000)
                         if dom_text and dom_text.strip():
                             text = dom_text.strip()
                             method_used = "dom"
@@ -133,10 +138,10 @@ class XFetcher(Fetcher):
                 if text is None:
                     raise RuntimeError("Could not extract tweet text via any method")
 
-                print(f"Text extraction method: {method_used}", flush=True)
+                print(f"Text extraction method: {method_used} ({time.monotonic() - text_extract_start:.2f}s)", flush=True)
 
                 try:
-                    scoped_html = await article.inner_html()
+                    scoped_html = await article.inner_html(timeout=3000)
                 except Exception:
                     scoped_html = await page.content()
 
