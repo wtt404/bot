@@ -51,6 +51,7 @@ class XFetcher(Fetcher):
                     await page.wait_for_timeout(750)
                 except Exception:
                     pass
+
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
@@ -137,7 +138,7 @@ class XFetcher(Fetcher):
                 try:
                     scoped_html = await article.inner_html()
                 except Exception:
-                    scoped_html = await page.content()  
+                    scoped_html = await page.content()
 
                 video_urls = set(re.findall(
                     r'https://video\.twimg\.com[^"\']+',
