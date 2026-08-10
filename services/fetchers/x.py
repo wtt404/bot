@@ -27,13 +27,14 @@ class XFetcher(Fetcher):
 
             try:
                 print("FETCH START", flush=True)
+                nav_start = time.monotonic()
 
                 response = await page.goto(
                     url,
                     wait_until="domcontentloaded",
                     timeout=30000
                 )
-                print("Navigation finished", flush=True)
+                print(f"[TIMING] Navigation: {time.monotonic() - nav_start:.2f}s", flush=True)
 
                 print(f"Status: {response.status if response else 'None'}", flush=True)
 
@@ -41,6 +42,7 @@ class XFetcher(Fetcher):
 
                 print("Title:", await page.title(), flush=True)
 
+                render_wait_start = time.monotonic()
                 try:
                     await page.wait_for_selector(
                         '[data-testid="tweetPhoto"], video',
@@ -48,7 +50,8 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass
+                    pass  # text-only tweet, nothing to wait for
+                print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 article = page.locator('article[data-testid="tweet"]').first
 
@@ -58,14 +61,25 @@ class XFetcher(Fetcher):
                 except Exception:
                     pass
 
+                captured_video_urls.clear()
+
                 if has_target_video:
+                    try:
+                        await page.evaluate("""
+                            () => {
+                                document.querySelectorAll('video').forEach(v => {
+                                    try { v.pause(); } catch (e) {}
+                                });
+                            }
+                        """)
+                    except Exception:
+                        pass
+
                     try:
                         await article.locator("video").first.click(timeout=3000)
                         await page.wait_for_timeout(1500)
                     except Exception:
                         pass
-                else:
-                    captured_video_urls.clear()
 
                 text = None
                 method_used = None
@@ -109,7 +123,7 @@ class XFetcher(Fetcher):
                 try:
                     scoped_html = await article.inner_html()
                 except Exception:
-                    scoped_html = await page.content()
+                    scoped_html = await page.content() 
 
                 video_urls = set(re.findall(
                     r'https://video\.twimg\.com[^"\']+',
