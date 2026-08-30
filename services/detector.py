@@ -4,7 +4,7 @@ from config import settings
 from models.detected import DetectedContent
 
 X_PATTERN = re.compile(r"https?://(?:www\.)?(?:x\.com|twitter\.com)/\S+")
-TELEGRAM_PATTERN = re.compile(r"https?://t\.me/\S+")
+TELEGRAM_PATTERN = re.compile(r"https?://(?:t\.me|telegram\.dog)/\S+")
 
 def detect(message: str):
     if settings.AUTO_X:
