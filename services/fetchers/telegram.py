@@ -1,16 +1,18 @@
 import re
+import time
 import aiohttp
 from bs4 import BeautifulSoup
 
 from models.post import Post, Media
 from services.fetchers.base import Fetcher
 
-URL_PATTERN = re.compile(r"t\.me/(?:s/)?([A-Za-z0-9_]+)/(\d+)")
+URL_PATTERN = re.compile(r"(?:t\.me|telegram\.dog)/(?:s/)?([A-Za-z0-9_]+)/(\d+)")
 BG_IMAGE_PATTERN = re.compile(r"background-image:url\('([^']+)'\)")
 
 
 class TelegramFetcher(Fetcher):
     async def fetch(self, url: str) -> Post:
+        fetch_start = time.monotonic()
         match = URL_PATTERN.search(url)
 
         if not match:
@@ -51,7 +53,8 @@ class TelegramFetcher(Fetcher):
                 break
 
         if message_el is None:
-            message_el = soup
+            message_el = soup  # fallback: best effort if markup changes
+
         for reply_block in message_el.select(".tgme_widget_message_reply"):
             reply_block.decompose()
 
@@ -93,5 +96,8 @@ class TelegramFetcher(Fetcher):
 
             seen.add(src)
             media.append(Media(url=src.replace("&amp;", "&"), type="video"))
+
+        elapsed = time.monotonic() - fetch_start
+        print(f"[TIMING] TelegramFetcher.fetch: {elapsed:.2f}s", flush=True)
 
         return Post(platform="telegram", text=text, media=media)
