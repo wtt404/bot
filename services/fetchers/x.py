@@ -12,7 +12,24 @@ from services.fetchers.base import Fetcher
 SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
 
 
+def _upgrade_photo_quality(url: str) -> str:
+
+    base = url.split("?")[0]
+    # Strip a trailing ":size" suffix (e.g. ":large") if present - only
+    # from the end of the path, not the "https://" scheme separator.
+    base = re.sub(r":[a-zA-Z]+$", "", base)
+
+    filename = base.rsplit("/", 1)[-1]
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+
+    if ext not in ("jpg", "jpeg", "png"):
+        ext = "jpg"
+
+    return f"{base}?format={ext}&name=orig"
+
+
 def _get_token(tweet_id: str) -> str:
+    
     value = (int(tweet_id) / 1e15) * math.pi
     digits = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -54,6 +71,7 @@ class XFetcher(Fetcher):
         return await self._fetch_via_browser(url)
 
     async def _fetch_via_syndication(self, status_id: str) -> Post:
+
         token = _get_token(status_id)
 
         async with aiohttp.ClientSession() as session:
@@ -68,16 +86,20 @@ class XFetcher(Fetcher):
 
                 data = await resp.json()
 
-        text = data.get("text")
-
-        if not text:
-            raise RuntimeError("Syndication response missing tweet text")
+        raw_text = data.get("text") or ""
 
         seen = set()
         media = []
+        media_tco_urls = set()
 
-        for photo in data.get("mediaDetails", []) or data.get("photos", []):
-            photo_url = photo.get("media_url_https") or photo.get("url")
+        media_details = data.get("mediaDetails", []) or data.get("photos", []) or []
+
+        for photo in media_details:
+            photo_url = photo.get("media_url_https")
+
+            tco = photo.get("url") if photo.get("url", "").startswith("https://t.co/") else None
+            if tco:
+                media_tco_urls.add(tco)
 
             if not photo_url or photo_url in seen:
                 continue
@@ -86,7 +108,12 @@ class XFetcher(Fetcher):
                 continue
 
             seen.add(photo_url)
-            media.append(Media(url=photo_url, type="image"))
+            media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
+
+        for m in (data.get("entities", {}) or {}).get("media", []) or []:
+            tco = m.get("url")
+            if tco and tco.startswith("https://t.co/"):
+                media_tco_urls.add(tco)
 
         video = data.get("video")
 
@@ -103,7 +130,19 @@ class XFetcher(Fetcher):
                     seen.add(best["src"])
                     media.append(Media(url=best["src"], type="video"))
 
+        text = raw_text
+        for tco in media_tco_urls:
+            text = text.replace(tco, "")
+        text = text.strip(
+
+        if media and text == raw_text.strip():
+            text = re.sub(r"\s*https://t\.co/\w+\s*$", "", text).strip()
+
+        if not text and not media:
+            raise RuntimeError("Syndication response has no text and no media")
+
         print(f"Syndication media: {media}", flush=True)
+        print(f"Syndication text after t.co stripping: {text!r}", flush=True)
 
         return Post(platform="x", text=text, media=media)
 
@@ -274,7 +313,7 @@ class XFetcher(Fetcher):
 
                     seen.add(media_id)
 
-                    media.append(Media(url=media_url, type="image"))
+                    media.append(Media(url=_upgrade_photo_quality(media_url), type="image"))
 
                 for video_url in video_urls:
                     video_url = video_url.replace("&amp;", "&")
