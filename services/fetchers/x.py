@@ -131,7 +131,7 @@ class XFetcher(Fetcher):
         text = raw_text
         for tco in media_tco_urls:
             text = text.replace(tco, "")
-        text = text.strip(
+        text = text.strip()
 
         if media and text == raw_text.strip():
             text = re.sub(r"\s*https://t\.co/\w+\s*$", "", text).strip()
