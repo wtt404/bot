@@ -15,8 +15,6 @@ SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
 def _upgrade_photo_quality(url: str) -> str:
 
     base = url.split("?")[0]
-    # Strip a trailing ":size" suffix (e.g. ":large") if present - only
-    # from the end of the path, not the "https://" scheme separator.
     base = re.sub(r":[a-zA-Z]+$", "", base)
 
     filename = base.rsplit("/", 1)[-1]
