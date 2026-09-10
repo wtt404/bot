@@ -5,12 +5,17 @@ from services.embeds import translation_embed
 from services.media import download, cleanup
 
 async def translate_post(message, post):
-    language = detect_language(post.text)
+    if post.text and post.text.strip():
+        language = detect_language(post.text)
 
-    if language == "en" and settings.IGNORE_ENGLISH:
-        translated = None
+        if language == "en" and settings.IGNORE_ENGLISH:
+            translated = None
+        else:
+            translated = await translate(post.text)
     else:
-        translated = await translate(post.text)
+ 
+        language = None
+        translated = None
  
     print("Language:", language, flush=True)
     print("Media:", post.media, flush=True)
@@ -36,6 +41,7 @@ async def translate_post(message, post):
         )
 
     if embed is None and not files:
+
         print("Nothing to send.", flush=True)
         return
 
