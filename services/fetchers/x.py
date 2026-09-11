@@ -104,7 +104,7 @@ class XFetcher(Fetcher):
                 continue
 
             seen.add(photo_url)
-             media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
+            media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
 
         for m in (data.get("entities", {}) or {}).get("media", []) or []:
             tco = m.get("url")
