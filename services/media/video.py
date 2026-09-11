@@ -17,7 +17,8 @@ async def get_best_mp4(playlist_url: str):
 
             text = await resp.text()
 
-        print("===== PLAYLIST =====", flush=True)
+        print("===== MASTER PLAYLIST =====", flush=True)
+        print(text, flush=True)
 
         variants = []
 
@@ -45,6 +46,15 @@ async def get_best_mp4(playlist_url: str):
         variants.sort(reverse=True)
 
         best = variants[0][1]
+
+        audio_url = None
+        audio_match = re.search(r'#EXT-X-MEDIA:TYPE=AUDIO[^\n]*URI="([^"]+)"', text)
+
+        if audio_match:
+            audio_url = urljoin(playlist_url, audio_match.group(1))
+            print("Audio playlist:", audio_url, flush=True)
+        else:
+            print("No separate audio track found in master playlist", flush=True)
 
         print("Best playlist:", best, flush=True)
         print("Fetching best playlist...", flush=True)
@@ -76,15 +86,32 @@ async def get_best_mp4(playlist_url: str):
 
     output = tmp.name
 
-    cmd = [
-        "ffmpeg",
-        "-y",
-        "-i",
-        best,
-        "-c",
-        "copy",
-        output,
-    ]
+    if audio_url:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            best,
+            "-i",
+            audio_url,
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c",
+            "copy",
+            output,
+        ]
+    else:
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            best,
+            "-c",
+            "copy",
+            output,
+        ]
 
     print("Running FFmpeg...", flush=True)
 
@@ -97,10 +124,40 @@ async def get_best_mp4(playlist_url: str):
     if result.returncode != 0:
         print(result.stderr, flush=True)
 
-        if os.path.exists(output):
-            os.remove(output)
+        if audio_url:
+            print("Muxed ffmpeg attempt failed, retrying video-only", flush=True)
 
-        return None
+            if os.path.exists(output):
+                os.remove(output)
+
+            fallback_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                best,
+                "-c",
+                "copy",
+                output,
+            ]
+
+            fallback_result = subprocess.run(
+                fallback_cmd,
+                capture_output=True,
+                text=True
+            )
+
+            if fallback_result.returncode != 0:
+                print(fallback_result.stderr, flush=True)
+
+                if os.path.exists(output):
+                    os.remove(output)
+
+                return None
+        else:
+            if os.path.exists(output):
+                os.remove(output)
+
+            return None
 
     print("Video saved:", output, flush=True)
 
