@@ -13,7 +13,7 @@ SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
 
 
 def _upgrade_photo_quality(url: str) -> str:
-
+    
     base = url.split("?")[0]
     base = re.sub(r":[a-zA-Z]+$", "", base)
 
@@ -27,7 +27,6 @@ def _upgrade_photo_quality(url: str) -> str:
 
 
 def _get_token(tweet_id: str) -> str:
-    
     value = (int(tweet_id) / 1e15) * math.pi
     digits = "0123456789abcdefghijklmnopqrstuvwxyz"
 
@@ -69,7 +68,6 @@ class XFetcher(Fetcher):
         return await self._fetch_via_browser(url)
 
     async def _fetch_via_syndication(self, status_id: str) -> Post:
-
         token = _get_token(status_id)
 
         async with aiohttp.ClientSession() as session:
@@ -106,7 +104,7 @@ class XFetcher(Fetcher):
                 continue
 
             seen.add(photo_url)
-            media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
+             media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
 
         for m in (data.get("entities", {}) or {}).get("media", []) or []:
             tco = m.get("url")
@@ -116,17 +114,30 @@ class XFetcher(Fetcher):
         video = data.get("video")
 
         if video:
-            variants = [
-                v for v in video.get("variants", [])
-                if v.get("type") == "video/mp4" and v.get("src")
-            ]
+            variants = video.get("variants", []) or []
 
-            if variants:
-                best = max(variants, key=lambda v: v.get("bitrate", 0))
+            hls_variant = next(
+                (v for v in variants if v.get("type") == "application/x-mpegURL" and v.get("src")),
+                None
+            )
 
-                if best["src"] not in seen:
-                    seen.add(best["src"])
-                    media.append(Media(url=best["src"], type="video"))
+            if hls_variant and hls_variant["src"] not in seen:
+                seen.add(hls_variant["src"])
+                media.append(Media(url=hls_variant["src"], type="video"))
+                print("Using HLS playlist for best video quality", flush=True)
+            else:
+                mp4_variants = [
+                    v for v in variants
+                    if v.get("type") == "video/mp4" and v.get("src")
+                ]
+
+                if mp4_variants:
+                    best = max(mp4_variants, key=lambda v: v.get("bitrate", 0))
+
+                    if best["src"] not in seen:
+                        seen.add(best["src"])
+                        media.append(Media(url=best["src"], type="video"))
+                        print(f"No HLS playlist available, using capped direct mp4 (bitrate={best.get('bitrate')})", flush=True)
 
         text = raw_text
         for tco in media_tco_urls:
