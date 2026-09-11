@@ -23,18 +23,26 @@ async def get_best_mp4(playlist_url: str):
         variants = []
 
         for match in re.finditer(
-            r"RESOLUTION=(\d+)x(\d+).*?\n([^\n]+\.m3u8)",
+            r"#EXT-X-STREAM-INF:([^\n]*)\n([^\n]+\.m3u8)",
             text,
-            re.DOTALL,
         ):
-            width = int(match.group(1))
-            height = int(match.group(2))
-            playlist = match.group(3).strip()
+            attrs = match.group(1)
+            playlist = match.group(2).strip()
+
+            res_match = re.search(r"RESOLUTION=(\d+)x(\d+)", attrs)
+            if not res_match:
+                continue
+
+            width, height = int(res_match.group(1)), int(res_match.group(2))
+
+            audio_group_match = re.search(r'AUDIO="([^"]+)"', attrs)
+            audio_group = audio_group_match.group(1) if audio_group_match else None
 
             variants.append(
                 (
                     width * height,
                     urljoin(playlist_url, playlist),
+                    audio_group,
                 )
             )
 
@@ -43,15 +51,33 @@ async def get_best_mp4(playlist_url: str):
         if not variants:
             return None
 
-        variants.sort(reverse=True)
+        variants.sort(key=lambda v: v[0], reverse=True)
 
         best = variants[0][1]
+        best_audio_group = variants[0][2]
 
         audio_url = None
-        audio_match = re.search(r'#EXT-X-MEDIA:TYPE=AUDIO[^\n]*URI="([^"]+)"', text)
 
-        if audio_match:
-            audio_url = urljoin(playlist_url, audio_match.group(1))
+        def _find_audio_uri(group_id):
+            for line in text.splitlines():
+                if (
+                    line.startswith("#EXT-X-MEDIA:")
+                    and "TYPE=AUDIO" in line
+                    and (group_id is None or f'GROUP-ID="{group_id}"' in line)
+                ):
+                    uri_match = re.search(r'URI="([^"]+)"', line)
+                    if uri_match:
+                        return uri_match.group(1)
+            return None
+
+        audio_uri = _find_audio_uri(best_audio_group)
+
+        if audio_uri is None and best_audio_group is not None:
+            print(f"Couldn't find audio group '{best_audio_group}', falling back to any audio track", flush=True)
+            audio_uri = _find_audio_uri(None)
+
+        if audio_uri:
+            audio_url = urljoin(playlist_url, audio_uri)
             print("Audio playlist:", audio_url, flush=True)
         else:
             print("No separate audio track found in master playlist", flush=True)
