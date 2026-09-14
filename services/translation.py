@@ -1,14 +1,9 @@
 import asyncio
 import time
 
-from deep_translator import GoogleTranslator
+from deep_translator import GoogleTranslator, MyMemoryTranslator
 
 from config import settings
-
-
-_MIN_INTERVAL = 0.4  
-_last_call_at = 0.0
-_throttle_lock = asyncio.Lock()
 
 
 def _looks_like_bad_response(text: str) -> bool:
@@ -26,41 +21,42 @@ def _looks_like_bad_response(text: str) -> bool:
     return any(marker in lowered for marker in error_markers)
 
 
-async def _throttle():
-    global _last_call_at
+class _Throttle:
 
-    async with _throttle_lock:
-        now = time.monotonic()
-        wait = _MIN_INTERVAL - (now - _last_call_at)
+    def __init__(self, min_interval: float):
+        self._min_interval = min_interval
+        self._last_call_at = 0.0
+        self._lock = asyncio.Lock()
 
-        if wait > 0:
-            await asyncio.sleep(wait)
+    async def wait(self):
+        async with self._lock:
+            now = time.monotonic()
+            remaining = self._min_interval - (now - self._last_call_at)
 
-        _last_call_at = time.monotonic()
+            if remaining > 0:
+                await asyncio.sleep(remaining)
 
+            self._last_call_at = time.monotonic()
 
-async def _translate_once(text: str) -> str:
-    await _throttle()
+_google_throttle = _Throttle(0.4)  # 2.5 req/s, comfortably under that
 
-    return await asyncio.to_thread(
-        GoogleTranslator(
-            source="auto",
-            target=settings.TARGET_LANGUAGE.lower()
-        ).translate,
-        text
-    )
+_mymemory_throttle = _Throttle(1.0)  # conservative, unofficial anonymous tier
 
 
-async def translate(text: str) -> str:
-    attempts = 3
+async def _run_sync(throttle: "_Throttle", func, *args) -> str:
+    await throttle.wait()
 
+    return await asyncio.to_thread(func, *args)
+
+
+async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: str, attempts: int) -> str:
     for attempt in range(attempts):
         try:
-            result = await _translate_once(text)
+            result = await _run_sync(throttle, translate_fn, text)
 
             if _looks_like_bad_response(result):
                 print(
-                    f"GoogleTranslator returned a suspicious response "
+                    f"{name} returned a suspicious response "
                     f"(attempt {attempt + 1}/{attempts}), discarding: "
                     f"{(result or '')[:200]}",
                     flush=True
@@ -73,10 +69,37 @@ async def translate(text: str) -> str:
             return result
 
         except Exception as e:
-            print(f"GoogleTranslator failed (attempt {attempt + 1}/{attempts}):", e, flush=True)
+            print(f"{name} failed (attempt {attempt + 1}/{attempts}):", e, flush=True)
             if attempt < attempts - 1:
-                await asyncio.sleep(2 ** attempt)  # 1s, 2s
+                await asyncio.sleep(2 ** attempt)
                 continue
             return None
 
     return None
+
+
+async def translate(text: str) -> str:
+    target = settings.TARGET_LANGUAGE.lower()
+
+    result = await _try_provider(
+        "GoogleTranslator",
+        _google_throttle,
+        GoogleTranslator(source="auto", target=target).translate,
+        text,
+        attempts=3,
+    )
+
+    if result:
+        return result
+
+    print("GoogleTranslator exhausted, falling back to MyMemoryTranslator", flush=True)
+
+    result = await _try_provider(
+        "MyMemoryTranslator",
+        _mymemory_throttle,
+        MyMemoryTranslator(source="auto", target=target).translate,
+        text,
+        attempts=2,
+    )
+
+    return result
