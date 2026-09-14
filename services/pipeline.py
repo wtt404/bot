@@ -11,9 +11,8 @@ async def translate_post(message, post):
         if language == "en" and settings.IGNORE_ENGLISH:
             translated = None
         else:
-            translated = await translate(post.text)
+            translated = await translate(post.text, source_language=language)
     else:
- 
         language = None
         translated = None
  
@@ -41,7 +40,6 @@ async def translate_post(message, post):
         )
 
     if embed is None and not files:
-
         print("Nothing to send.", flush=True)
         return
 
