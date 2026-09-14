@@ -22,7 +22,6 @@ def _looks_like_bad_response(text: str) -> bool:
 
 
 class _Throttle:
-
     def __init__(self, min_interval: float):
         self._min_interval = min_interval
         self._last_call_at = 0.0
@@ -38,9 +37,10 @@ class _Throttle:
 
             self._last_call_at = time.monotonic()
 
+
 _google_throttle = _Throttle(0.4)  # 2.5 req/s, comfortably under that
 
-_mymemory_throttle = _Throttle(1.0)  # conservative, unofficial anonymous tier
+_mymemory_throttle = _Throttle(1.0)
 
 
 async def _run_sync(throttle: "_Throttle", func, *args) -> str:
@@ -78,7 +78,7 @@ async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: st
     return None
 
 
-async def translate(text: str) -> str:
+async def translate(text: str, source_language: str = None) -> str:
     target = settings.TARGET_LANGUAGE.lower()
 
     result = await _try_provider(
@@ -94,10 +94,14 @@ async def translate(text: str) -> str:
 
     print("GoogleTranslator exhausted, falling back to MyMemoryTranslator", flush=True)
 
+    if not source_language:
+        print("No known source language for MyMemory (its auto-detect is broken) - skipping fallback", flush=True)
+        return None
+
     result = await _try_provider(
         "MyMemoryTranslator",
         _mymemory_throttle,
-        MyMemoryTranslator(source="auto", target=target).translate,
+        MyMemoryTranslator(source=source_language, target=target).translate,
         text,
         attempts=2,
     )
