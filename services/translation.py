@@ -12,9 +12,6 @@ def _looks_like_bad_response(text: str) -> bool:
 
     lowered = text.lower()
 
-    # Both providers have been observed occasionally handing back a raw
-    # server-error page as if it were a real translation, rather than
-    # raising a clean exception. Catch the common shapes of that here.
     error_markers = (
         "that's an error", "that's all we know", "<html",
         "error 500", "error 404", "error 429",
