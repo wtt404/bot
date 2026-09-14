@@ -12,6 +12,9 @@ def _looks_like_bad_response(text: str) -> bool:
 
     lowered = text.lower()
 
+    # Both providers have been observed occasionally handing back a raw
+    # server-error page as if it were a real translation, rather than
+    # raising a clean exception. Catch the common shapes of that here.
     error_markers = (
         "that's an error", "that's all we know", "<html",
         "error 500", "error 404", "error 429",
@@ -22,6 +25,7 @@ def _looks_like_bad_response(text: str) -> bool:
 
 
 class _Throttle:
+
     def __init__(self, min_interval: float):
         self._min_interval = min_interval
         self._last_call_at = 0.0
@@ -37,8 +41,7 @@ class _Throttle:
 
             self._last_call_at = time.monotonic()
 
-
-_google_throttle = _Throttle(0.4)  # 2.5 req/s, comfortably under that
+_google_throttle = _Throttle(0.4)
 
 _mymemory_throttle = _Throttle(1.0)
 
@@ -77,6 +80,23 @@ async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: st
 
     return None
 
+_MYMEMORY_SOURCE_NAMES = {
+    "en": "english",
+    "ar": "arabic",
+    "ja": "japanese",
+    "ko": "korean",
+    "zh": "chinese simplified",
+    "ru": "russian",
+    "fr": "french",
+    "de": "german",
+    "uk": "ukrainian",
+    "es": "spanish",
+    "he": "hebrew",
+    "it": "italian",
+    "pt": "portuguese",
+    "fa": "persian",
+}
+
 
 async def translate(text: str, source_language: str = None) -> str:
     target = settings.TARGET_LANGUAGE.lower()
@@ -94,14 +114,16 @@ async def translate(text: str, source_language: str = None) -> str:
 
     print("GoogleTranslator exhausted, falling back to MyMemoryTranslator", flush=True)
 
-    if not source_language:
-        print("No known source language for MyMemory (its auto-detect is broken) - skipping fallback", flush=True)
+    mymemory_source = _MYMEMORY_SOURCE_NAMES.get(source_language) if source_language else None
+
+    if not mymemory_source:
+        print(f"No usable MyMemory source name for '{source_language}' - skipping fallback", flush=True)
         return None
 
     result = await _try_provider(
         "MyMemoryTranslator",
         _mymemory_throttle,
-        MyMemoryTranslator(source=source_language, target=target).translate,
+        MyMemoryTranslator(source=mymemory_source, target=target).translate,
         text,
         attempts=2,
     )
