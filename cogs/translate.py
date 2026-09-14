@@ -43,7 +43,7 @@ class Translate(commands.Cog):
         from services.embeds import translation_embed
 
         language = detect_language(text)
-        translated = await translate_text(text)
+        translated = await translate_text(text, source_language=language)
 
         if not translated:
             await interaction.followup.send("Sorry, I couldn't translate that.")
