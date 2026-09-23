@@ -2,6 +2,6 @@ discord.py
 python-dotenv
 lingua-language-detector
 playwright
-argostranslate
+deep-translator
 aiohttp
 beautifulsoup4
