@@ -22,7 +22,6 @@ def _looks_like_bad_response(text: str) -> bool:
 
 
 class _Throttle:
-
     def __init__(self, min_interval: float):
         self._min_interval = min_interval
         self._last_call_at = 0.0
@@ -39,16 +38,16 @@ class _Throttle:
             self._last_call_at = time.monotonic()
 
 
+_google_throttle = _Throttle(0.4)
 _mymemory_throttle = _Throttle(1.0)
 
 
-async def _run_sync(throttle: "_Throttle", func, *args) -> str:
+async def _run_sync(throttle, func, *args) -> str:
     await throttle.wait()
-
     return await asyncio.to_thread(func, *args)
 
 
-async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: str, attempts: int) -> str:
+async def _try_provider(name: str, throttle, translate_fn, text: str, attempts: int) -> str:
     for attempt in range(attempts):
         try:
             result = await _run_sync(throttle, translate_fn, text)
@@ -61,7 +60,7 @@ async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: st
                     flush=True
                 )
                 if attempt < attempts - 1:
-                    await asyncio.sleep(2 ** attempt)  # 1s, 2s
+                    await asyncio.sleep(2 ** attempt)
                     continue
                 return None
 
@@ -75,6 +74,7 @@ async def _try_provider(name: str, throttle: "_Throttle", translate_fn, text: st
             return None
 
     return None
+
 
 _MYMEMORY_SOURCE_NAMES = {
     "en": "english",
