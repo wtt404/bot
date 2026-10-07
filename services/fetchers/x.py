@@ -13,8 +13,9 @@ SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
 
 
 def _upgrade_photo_quality(url: str) -> str:
-    
     base = url.split("?")[0]
+    # Strip a trailing ":size" suffix (e.g. ":large") if present - only
+    # from the end of the path, not the "https://" scheme separator.
     base = re.sub(r":[a-zA-Z]+$", "", base)
 
     filename = base.rsplit("/", 1)[-1]
@@ -84,6 +85,19 @@ class XFetcher(Fetcher):
 
         raw_text = data.get("text") or ""
 
+        user = data.get("user") or {}
+        author_name = user.get("name")
+        author_handle = user.get("screen_name")
+        author_avatar = user.get("profile_image_url_https")
+
+        if author_avatar:
+            author_avatar = re.sub(r"_(normal|bigger|mini)\.", "_400x400.", author_avatar)
+
+        post_url = (
+            f"https://x.com/{author_handle}/status/{status_id}"
+            if author_handle else f"https://x.com/i/status/{status_id}"
+        )
+
         seen = set()
         media = []
         media_tco_urls = set()
@@ -106,6 +120,8 @@ class XFetcher(Fetcher):
             seen.add(photo_url)
             media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
 
+        # Also check top-level entities for the media t.co link, in case
+        # it's not present per-item in mediaDetails for some tweet shapes.
         for m in (data.get("entities", {}) or {}).get("media", []) or []:
             tco = m.get("url")
             if tco and tco.startswith("https://t.co/"):
@@ -153,7 +169,15 @@ class XFetcher(Fetcher):
         print(f"Syndication media: {media}", flush=True)
         print(f"Syndication text after t.co stripping: {text!r}", flush=True)
 
-        return Post(platform="x", text=text, media=media)
+        return Post(
+            platform="x",
+            text=text,
+            media=media,
+            author_name=author_name,
+            author_handle=author_handle,
+            author_avatar=author_avatar,
+            url=post_url
+        )
 
     async def _fetch_via_browser(self, url: str) -> Post:
         fetch_start = time.monotonic()
@@ -288,6 +312,42 @@ class XFetcher(Fetcher):
 
                 print(f"Text extraction method: {method_used} ({time.monotonic() - text_extract_start:.2f}s)", flush=True)
 
+                author_name = None
+                author_handle = None
+                author_avatar = None
+
+                try:
+                    name_block = await article.locator('[data-testid="User-Name"]').first.inner_text(timeout=2000)
+                    parts = [p.strip() for p in name_block.split("\n") if p.strip()]
+
+                    if parts:
+                        author_name = parts[0]
+
+                    for part in parts:
+                        if part.startswith("@"):
+                            author_handle = part[1:]
+                            break
+                except Exception:
+                    pass
+
+                if not author_handle:
+                    handle_match = re.search(r"(?:x|twitter)\.com/([A-Za-z0-9_]+)/status/", url)
+                    if handle_match and handle_match.group(1).lower() != "i":
+                        author_handle = handle_match.group(1)
+
+                try:
+                    author_avatar = await article.locator('img[src*="profile_images"]').first.get_attribute("src", timeout=2000)
+
+                    if author_avatar:
+                        author_avatar = re.sub(r"_(normal|bigger|mini)\.", "_400x400.", author_avatar)
+                except Exception:
+                    pass
+
+                post_url = (
+                    f"https://x.com/{author_handle}/status/{status_id}"
+                    if author_handle and status_id else url
+                )
+
                 try:
                     scoped_html = await article.inner_html(timeout=3000)
                 except Exception:
@@ -339,7 +399,15 @@ class XFetcher(Fetcher):
                 elapsed = time.monotonic() - fetch_start
                 print(f"[TIMING] XFetcher.fetch (browser) succeeded in {elapsed:.2f}s", flush=True)
 
-                return Post(platform="x", text=text, media=media)
+                return Post(
+                    platform="x",
+                    text=text,
+                    media=media,
+                    author_name=author_name,
+                    author_handle=author_handle,
+                    author_avatar=author_avatar,
+                    url=post_url
+                )
 
             finally:
                 elapsed = time.monotonic() - fetch_start
