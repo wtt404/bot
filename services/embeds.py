@@ -26,6 +26,7 @@ def translation_embed(guild, text, language, media_failed=False):
     "he": "Hebrew",
     "it": "Italian",
     "pt": "Portuguese",
+    "fa": "Persian",
     }
 
     if text:
