@@ -118,8 +118,6 @@ class XFetcher(Fetcher):
             seen.add(photo_url)
             media.append(Media(url=_upgrade_photo_quality(photo_url), type="image"))
 
-        # Also check top-level entities for the media t.co link, in case
-        # it's not present per-item in mediaDetails for some tweet shapes.
         for m in (data.get("entities", {}) or {}).get("media", []) or []:
             tco = m.get("url")
             if tco and tco.startswith("https://t.co/"):
