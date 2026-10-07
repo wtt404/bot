@@ -53,7 +53,7 @@ class TelegramFetcher(Fetcher):
                 break
 
         if message_el is None:
-            message_el = soup  # fallback: best effort if markup changes
+            message_el = soup
 
         for reply_block in message_el.select(".tgme_widget_message_reply"):
             reply_block.decompose()
