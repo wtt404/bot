@@ -58,6 +58,12 @@ class TelegramFetcher(Fetcher):
         for reply_block in message_el.select(".tgme_widget_message_reply"):
             reply_block.decompose()
 
+        owner_el = message_el.select_one(".tgme_widget_message_owner_name")
+        author_name = owner_el.get_text(strip=True) if owner_el else None
+
+        avatar_el = message_el.select_one(".tgme_widget_message_user_photo img")
+        author_avatar = avatar_el.get("src") if avatar_el else None
+
         text_el = message_el.select_one(".tgme_widget_message_text")
 
         text = ""
@@ -100,4 +106,12 @@ class TelegramFetcher(Fetcher):
         elapsed = time.monotonic() - fetch_start
         print(f"[TIMING] TelegramFetcher.fetch: {elapsed:.2f}s", flush=True)
 
-        return Post(platform="telegram", text=text, media=media)
+        return Post(
+            platform="telegram",
+            text=text,
+            media=media,
+            author_name=author_name or channel,
+            author_handle=channel,
+            author_avatar=author_avatar,
+            url=f"https://t.me/{channel}/{msg_id}"
+        )
