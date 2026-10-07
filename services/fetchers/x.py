@@ -218,7 +218,8 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass  # text-only tweet, nothing to wait for
+                    pass
+
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
