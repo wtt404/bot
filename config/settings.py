@@ -1,5 +1,6 @@
 AUTO_X = True
 AUTO_TELEGRAM = True
+AUTO_INSTAGRAM = True
 
 TARGET_LANGUAGE = "English"
 
