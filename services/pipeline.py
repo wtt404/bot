@@ -1,21 +1,29 @@
 from config import settings
 from services.language import detect_language
 from services.translation import translate
-from services.embeds import translation_embed
+from services.embeds import post_embed
 from services.media import download, cleanup
 
-async def translate_post(message, post):
-    if post.text and post.text.strip():
-        language = detect_language(post.text)
 
-        if language == "en" and settings.IGNORE_ENGLISH:
-            translated = None
-        else:
-            translated = await translate(post.text, source_language=language)
-    else:
-        language = None
-        translated = None
- 
+async def translate_post(message, post):
+    text = (post.text or "").strip()
+    language = None
+    shown_text = text
+    translated = False
+    translation_failed = False
+
+    if text:
+        language = detect_language(text)
+
+        if not (language == "en" and settings.IGNORE_ENGLISH):
+            result = await translate(text, source_language=language)
+
+            if result:
+                shown_text = result
+                translated = True
+            else:
+                translation_failed = True
+
     print("Language:", language, flush=True)
     print("Media:", post.media, flush=True)
 
@@ -25,17 +33,20 @@ async def translate_post(message, post):
         files, media_failed_size = await download(post.media)
     else:
         files = []
-    print(f"Files: {len(files)}", flush=True)
 
+    print(f"Files: {len(files)}", flush=True)
     print("Replying...", flush=True)
 
     embed = None
 
-    if translated or media_failed_size:
-        embed = translation_embed(
+    if shown_text or post.author_name or post.author_handle or media_failed_size:
+        embed = post_embed(
             message.guild,
-            translated,
-            language,
+            post,
+            shown_text,
+            language=language,
+            translated=translated,
+            translation_failed=translation_failed,
             media_failed=media_failed_size
         )
 
