@@ -68,12 +68,18 @@ class Suggestions(commands.Cog):
         embed = discord.Embed(
             title="Suggestion",
             description=suggestion,
-            color=0x000000
+            color=0xaac200
         )
 
         embed.add_field(
             name="Suggested By",
             value=interaction.user.mention,
+            inline=False
+        )
+
+        embed.add_field(
+            name="Suggester",
+            value=interaction.user.name,
             inline=False
         )
 
