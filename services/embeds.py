@@ -43,6 +43,13 @@ def _author_label(post):
     return None
 
 
+PLATFORM_LABELS = {
+    "x": "X",
+    "instagram": "Instagram",
+    "telegram": "Telegram",
+}
+
+
 def translation_embed(guild, text, language, media_failed=False):
     embed = discord.Embed(
         description=text or None,
@@ -87,6 +94,17 @@ def post_embed(guild, post, text, language=None, translated=False, translation_f
         )
 
     _footer(embed, guild)
+
+    if post.posted_at:
+        embed.timestamp = post.posted_at
+
+    if post.url:
+        platform = PLATFORM_LABELS.get(post.platform, post.platform.title())
+        embed.add_field(
+            name="Source",
+            value=f"[{platform}]({post.url})",
+            inline=False
+        )
 
     if translated:
         embed.add_field(
