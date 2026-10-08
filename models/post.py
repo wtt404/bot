@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -16,3 +17,4 @@ class Post:
     author_handle: str = None
     author_avatar: str = None
     url: str = None
+    posted_at: datetime = None
