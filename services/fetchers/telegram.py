@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 
 from models.post import Post, Media
 from services.fetchers.base import Fetcher
+from services.fetchers.timeutil import from_iso
 
 URL_PATTERN = re.compile(r"(?:t\.me|telegram\.dog)/(?:s/)?([A-Za-z0-9_]+)/(\d+)")
 BG_IMAGE_PATTERN = re.compile(r"background-image:url\('([^']+)'\)")
@@ -64,6 +65,9 @@ class TelegramFetcher(Fetcher):
         avatar_el = message_el.select_one(".tgme_widget_message_user_photo img")
         author_avatar = avatar_el.get("src") if avatar_el else None
 
+        time_el = message_el.select_one("time[datetime]")
+        posted_at = from_iso(time_el.get("datetime")) if time_el else None
+
         text_el = message_el.select_one(".tgme_widget_message_text")
 
         text = ""
@@ -113,5 +117,6 @@ class TelegramFetcher(Fetcher):
             author_name=author_name or channel,
             author_handle=channel,
             author_avatar=author_avatar,
-            url=f"https://t.me/{channel}/{msg_id}"
+            url=f"https://t.me/{channel}/{msg_id}",
+            posted_at=posted_at
         )
