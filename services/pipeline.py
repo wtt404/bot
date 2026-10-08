@@ -5,6 +5,18 @@ from services.embeds import post_embed
 from services.media import download, cleanup
 
 
+async def _suppress_original_embed(message):
+    edit = getattr(message, "edit", None)
+
+    if edit is None:
+        return
+
+    try:
+        await edit(suppress=True)
+    except Exception as e:
+        print(f"Couldn't suppress original embed: {e}", flush=True)
+
+
 async def translate_post(message, post):
     text = (post.text or "").strip()
     language = None
@@ -60,6 +72,8 @@ async def translate_post(message, post):
             files=files,
             mention_author=False
         )
+
+        await _suppress_original_embed(message)
 
     finally:
         cleanup(files)
