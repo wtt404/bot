@@ -6,6 +6,7 @@ import time
 import aiohttp
 
 from models.post import Post, Media
+from services.fetchers.timeutil import from_iso
 from services.browser import new_page, page_semaphore
 from services.fetchers.base import Fetcher
 
@@ -14,6 +15,7 @@ SYNDICATION_URL = "https://cdn.syndication.twimg.com/tweet-result"
 
 def _upgrade_photo_quality(url: str) -> str:
     base = url.split("?")[0]
+    # Strip a trailing ":size" suffix (e.g. ":large") if present - only
     base = re.sub(r":[a-zA-Z]+$", "", base)
 
     filename = base.rsplit("/", 1)[-1]
@@ -96,6 +98,8 @@ class XFetcher(Fetcher):
             if author_handle else f"https://x.com/i/status/{status_id}"
         )
 
+        posted_at = from_iso(data.get("created_at"))
+
         seen = set()
         media = []
         media_tco_urls = set()
@@ -172,7 +176,8 @@ class XFetcher(Fetcher):
             author_name=author_name,
             author_handle=author_handle,
             author_avatar=author_avatar,
-            url=post_url
+            url=post_url,
+            posted_at=posted_at
         )
 
     async def _fetch_via_browser(self, url: str) -> Post:
@@ -218,8 +223,7 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass
-
+                    pass  # text-only tweet, nothing to wait for
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
@@ -345,6 +349,15 @@ class XFetcher(Fetcher):
                     if author_handle and status_id else url
                 )
 
+                posted_at = None
+
+                try:
+                    posted_at = from_iso(
+                        await article.locator("time").first.get_attribute("datetime", timeout=2000)
+                    )
+                except Exception:
+                    pass
+
                 try:
                     scoped_html = await article.inner_html(timeout=3000)
                 except Exception:
@@ -403,7 +416,8 @@ class XFetcher(Fetcher):
                     author_name=author_name,
                     author_handle=author_handle,
                     author_avatar=author_avatar,
-                    url=post_url
+                    url=post_url,
+                    posted_at=posted_at
                 )
 
             finally:
