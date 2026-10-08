@@ -1,12 +1,14 @@
 import json
 import re
 import time
+from datetime import datetime, timezone
 
 from bs4 import BeautifulSoup
 
 from models.post import Post, Media
 from services.browser import new_page, page_semaphore
 from services.fetchers.base import Fetcher
+from services.fetchers.timeutil import from_unix
 
 SHORTCODE_PATTERN = re.compile(r"/(?:p|reel|reels|tv)/([A-Za-z0-9_-]+)")
 USER_AGENT = (
@@ -120,7 +122,8 @@ def _post_from_payload(media, code):
         author_name=owner.get("full_name") or username,
         author_handle=username,
         author_avatar=owner.get("profile_pic_url") or owner.get("profile_pic_url_hd"),
-        url=f"https://www.instagram.com/p/{code}/" if code else None
+        url=f"https://www.instagram.com/p/{code}/" if code else None,
+        posted_at=from_unix(media.get("taken_at") or media.get("taken_at_timestamp"))
     )
 
 
@@ -152,6 +155,14 @@ def _post_from_meta(html, code):
     if match:
         caption = match.group(1).strip()
 
+    posted_at = None
+    match = re.search(r"\bon ([A-Z][a-z]+ \d{1,2}, \d{4})", description)
+    if match:
+        try:
+            posted_at = datetime.strptime(match.group(1), "%B %d, %Y").replace(tzinfo=timezone.utc)
+        except ValueError:
+            posted_at = None
+
     items = []
 
     if video:
@@ -169,7 +180,8 @@ def _post_from_meta(html, code):
         author_name=name or handle,
         author_handle=handle,
         author_avatar=None,
-        url=f"https://www.instagram.com/p/{code}/" if code else None
+        url=f"https://www.instagram.com/p/{code}/" if code else None,
+        posted_at=posted_at
     )
 
 
