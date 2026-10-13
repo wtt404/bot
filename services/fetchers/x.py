@@ -61,11 +61,32 @@ class XFetcher(Fetcher):
             try:
                 post = await self._fetch_via_syndication(status_id)
                 print(f"[TIMING] Syndication fetch succeeded in {time.monotonic() - syndication_start:.2f}s", flush=True)
+
+                if getattr(post, "_truncated", False):
+                    post = await self._complete_text(post, url)
+
                 return post
             except Exception as e:
                 print(f"Syndication fetch failed ({e}), falling back to browser scraping", flush=True)
 
         return await self._fetch_via_browser(url)
+
+    async def _complete_text(self, post: Post, url: str) -> Post:
+        try:
+            full = await self._fetch_via_browser(url)
+        except Exception as e:
+            print(f"Full text fetch failed ({e}), keeping syndication text", flush=True)
+            return post
+
+        full_text = (full.text or "").strip()
+
+        if len(full_text) > len(post.text or ""):
+            print(f"Replaced truncated text ({len(post.text or '')} -> {len(full_text)} chars)", flush=True)
+            post.text = full_text
+        else:
+            print("Browser text was not longer than syndication text", flush=True)
+
+        return post
 
     async def _fetch_via_syndication(self, status_id: str) -> Post:
         token = _get_token(status_id)
@@ -83,6 +104,18 @@ class XFetcher(Fetcher):
                 data = await resp.json()
 
         raw_text = data.get("text") or ""
+
+        truncated = bool(data.get("note_tweet")) or bool(
+            re.search(r"(?:\u2026|\.\.\.)\s*https://t\.co/\w+\s*$", raw_text)
+        )
+
+        print(
+            f"Syndication raw text length: {len(raw_text)}, "
+            f"note_tweet: {bool(data.get('note_tweet'))}, "
+            f"display_text_range: {data.get('display_text_range')}, "
+            f"truncated: {truncated}",
+            flush=True
+        )
 
         user = data.get("user") or {}
         author_name = user.get("name")
@@ -168,7 +201,7 @@ class XFetcher(Fetcher):
         print(f"Syndication media: {media}", flush=True)
         print(f"Syndication text after t.co stripping: {text!r}", flush=True)
 
-        return Post(
+        post = Post(
             platform="x",
             text=text,
             media=media,
@@ -178,6 +211,10 @@ class XFetcher(Fetcher):
             url=post_url,
             posted_at=posted_at
         )
+
+        post._truncated = truncated
+
+        return post
 
     async def _fetch_via_browser(self, url: str) -> Post:
         fetch_start = time.monotonic()
@@ -222,7 +259,7 @@ class XFetcher(Fetcher):
                     )
                     await page.wait_for_timeout(750)
                 except Exception:
-                    pass  # text-only tweet, nothing to wait for
+                    pass
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
@@ -271,6 +308,14 @@ class XFetcher(Fetcher):
                         await page.wait_for_timeout(1500)
                     except Exception:
                         pass
+
+                try:
+                    show_more = article.locator('[data-testid="tweet-text-show-more-link"]').first
+                    if await show_more.count() > 0:
+                        await show_more.click(timeout=2000)
+                        await page.wait_for_timeout(400)
+                except Exception:
+                    pass
 
                 text = None
                 method_used = None
