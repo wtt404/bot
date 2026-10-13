@@ -71,24 +71,61 @@ class XFetcher(Fetcher):
 
         return await self._fetch_via_browser(url)
 
+    async def _full_text_from_api(self, status_id: str):
+        sources = (
+            (f"https://api.fxtwitter.com/i/status/{status_id}", lambda d: (d.get("tweet") or {}).get("text")),
+            (f"https://api.vxtwitter.com/i/status/{status_id}", lambda d: d.get("text")),
+        )
+
+        async with aiohttp.ClientSession(
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        ) as session:
+            for api_url, extract in sources:
+                try:
+                    async with session.get(api_url, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                        if resp.status != 200:
+                            print(f"Full text API {api_url} returned status {resp.status}", flush=True)
+                            continue
+
+                        data = await resp.json(content_type=None)
+
+                    value = extract(data)
+
+                    if value and value.strip():
+                        print(f"Full text API succeeded: {api_url}", flush=True)
+                        return value.strip()
+
+                except Exception as e:
+                    print(f"Full text API {api_url} failed: {e}", flush=True)
+
+        return None
+
     async def _complete_text(self, post: Post, url: str) -> Post:
-        try:
-            full = await self._fetch_via_browser(url)
-        except Exception as e:
-            print(f"Full text fetch failed ({e}), keeping syndication text", flush=True)
-            return post
+        status_match = re.search(r"/status/(\d+)", url)
+        status_id = status_match.group(1) if status_match else None
 
-        full_text = (full.text or "").strip()
+        full_text = None
 
-        if len(full_text) > len(post.text or ""):
+        if status_id:
+            full_text = await self._full_text_from_api(status_id)
+
+        if not full_text:
+            try:
+                full = await self._fetch_via_browser(url)
+                full_text = (full.text or "").strip()
+            except Exception as e:
+                print(f"Browser full text fetch failed ({e})", flush=True)
+
+        if full_text and len(full_text) > len(post.text or ""):
             print(f"Replaced truncated text ({len(post.text or '')} -> {len(full_text)} chars)", flush=True)
             post.text = full_text
         else:
-            print("Browser text was not longer than syndication text", flush=True)
+            print("Couldn't get longer text, keeping syndication text", flush=True)
 
         return post
 
     async def _fetch_via_syndication(self, status_id: str) -> Post:
+        
         token = _get_token(status_id)
 
         async with aiohttp.ClientSession() as session:
@@ -260,6 +297,7 @@ class XFetcher(Fetcher):
                     await page.wait_for_timeout(750)
                 except Exception:
                     pass
+
                 print(f"[TIMING] Render wait: {time.monotonic() - render_wait_start:.2f}s", flush=True)
 
                 status_match = re.search(r"/status/(\d+)", url)
