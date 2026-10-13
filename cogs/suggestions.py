@@ -77,12 +77,6 @@ class Suggestions(commands.Cog):
             inline=False
         )
 
-        embed.add_field(
-            name="Suggester",
-            value=interaction.user.name,
-            inline=False
-        )
-
         icon = None
         if interaction.guild and interaction.guild.icon:
             icon = interaction.guild.icon.url
