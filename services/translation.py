@@ -1,9 +1,11 @@
 import asyncio
+import inspect
 import time
 
 from deep_translator import GoogleTranslator, MyMemoryTranslator
 
 from config import settings
+from services import edge_translate
 
 
 def _looks_like_bad_response(text: str) -> bool:
@@ -40,10 +42,15 @@ class _Throttle:
 
 _google_throttle = _Throttle(0.4)
 _mymemory_throttle = _Throttle(1.0)
+_edge_throttle = _Throttle(0.1)
 
 
 async def _run_sync(throttle, func, *args) -> str:
     await throttle.wait()
+
+    if inspect.iscoroutinefunction(func):
+        return await func(*args)
+
     return await asyncio.to_thread(func, *args)
 
 
@@ -91,11 +98,75 @@ _MYMEMORY_SOURCE_NAMES = {
     "it": "italian",
     "pt": "portuguese",
     "fa": "persian",
+    "id": "indonesian",
+    "tr": "turkish",
 }
 
 
+def _split_text(text: str, limit: int = 4500):
+    chunks = []
+    current = ""
+
+    for paragraph in text.split("\n"):
+        while len(paragraph) > limit:
+            cut = paragraph.rfind(" ", 0, limit)
+            cut = cut if cut > 0 else limit
+            piece, paragraph = paragraph[:cut], paragraph[cut:].lstrip()
+
+            if current:
+                chunks.append(current)
+                current = ""
+
+            chunks.append(piece)
+
+        addition = paragraph if not current else current + "\n" + paragraph
+
+        if len(addition) > limit:
+            chunks.append(current)
+            current = paragraph
+        else:
+            current = addition
+
+    if current:
+        chunks.append(current)
+
+    return chunks
+
+
 async def translate(text: str, source_language: str = None) -> str:
+    chunks = _split_text(text)
+
+    if len(chunks) <= 1:
+        return await _translate_chunk(text, source_language)
+
+    results = []
+
+    for chunk in chunks:
+        result = await _translate_chunk(chunk, source_language)
+
+        if not result:
+            return None
+
+        results.append(result)
+
+    return "\n".join(results)
+
+
+async def _translate_chunk(text: str, source_language: str = None) -> str:
     target = settings.TARGET_LANGUAGE.lower()
+
+    result = await _try_provider(
+        "EdgeTranslator",
+        _edge_throttle,
+        edge_translate.translate_text,
+        text,
+        attempts=2,
+    )
+
+    if result:
+        return result
+
+    print("EdgeTranslator exhausted, falling back to GoogleTranslator", flush=True)
 
     result = await _try_provider(
         "GoogleTranslator",
