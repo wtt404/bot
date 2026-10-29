@@ -14,6 +14,9 @@ LANGUAGES = [
     Language.HEBREW,
     Language.ITALIAN,
     Language.PORTUGUESE,
+    Language.PERSIAN,
+    Language.INDONESIAN,
+    Language.TURKISH,
 ]
 
 detector = LanguageDetectorBuilder.from_languages(*LANGUAGES).build()
