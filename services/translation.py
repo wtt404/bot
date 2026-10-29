@@ -187,12 +187,21 @@ async def _translate_chunk(text: str, source_language: str = None) -> str:
         print(f"No usable MyMemory source name for '{source_language}' - skipping fallback", flush=True)
         return None
 
-    result = await _try_provider(
-        "MyMemoryTranslator",
-        _mymemory_throttle,
-        MyMemoryTranslator(source=mymemory_source, target=target).translate,
-        text,
-        attempts=2,
-    )
+    translator = MyMemoryTranslator(source=mymemory_source, target=target).translate
+    parts = []
 
-    return result
+    for piece in _split_text(text, 450):
+        result = await _try_provider(
+            "MyMemoryTranslator",
+            _mymemory_throttle,
+            translator,
+            piece,
+            attempts=2,
+        )
+
+        if not result:
+            return None
+
+        parts.append(result)
+
+    return "\n".join(parts)
