@@ -31,6 +31,7 @@ TARGET_CODES = {
     "italian": "it",
     "portuguese": "pt",
     "ukrainian": "uk",
+    "polish": "pl",
 }
 
 
