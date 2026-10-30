@@ -17,6 +17,7 @@ LANGUAGES = {
     "pt": "Portuguese",
     "fa": "Persian",
     "id": "Indonesian",
+    "pl": "Polish",
 }
 
 
